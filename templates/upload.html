@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if current_language == 'ko' %}데이터 업로드 - 데이터 분석 플랫폼{% else %}Upload Data - Data Analytics Platform{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card shadow">
+            <div class="card-body p-5">
+                <h2 class="text-center mb-4">
+                    <i class="bi bi-cloud-upload-fill text-primary"></i>
+                    {{ '데이터 업로드' if current_language == 'ko' else 'Upload Data' }}
+                </h2>
+                
+                <form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data" id="uploadForm">
+                    <div class="mb-4">
+                        <label for="name" class="form-label fw-bold">
+                            {{ '데이터셋 이름 *' if current_language == 'ko' else 'Dataset Name *' }}
+                        </label>
+                        <input type="text" class="form-control" id="name" name="name" required 
+                               placeholder="{{ '예: 2024년 매출 데이터' if current_language == 'ko' else 'e.g., 2024 Sales Data' }}">
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="description" class="form-label fw-bold">
+                            {{ '설명' if current_language == 'ko' else 'Description' }}
+                        </label>
+                        <textarea class="form-control" id="description" name="description" rows="3" 
+                                  placeholder="{{ '데이터셋에 대한 간단한 설명을 입력하세요 (선택사항)' if current_language == 'ko' else 'Enter a brief description of the dataset (optional)' }}"></textarea>
+                    </div>
+                    
+                    <div class="mb-4">
+                        <label for="file" class="form-label fw-bold">
+                            {{ '파일 선택 *' if current_language == 'ko' else 'Select File *' }}
+                        </label>
+                        <input type="file" class="form-control" id="file" name="file" required 
+                               accept=".xlsx,.xls,.csv">
+                        <div class="form-text">
+                            <i class="bi bi-info-circle"></i> 
+                            {% if current_language == 'ko' %}
+                                지원 형식: Excel (.xlsx, .xls), CSV (.csv) | 최대 파일 크기: 16MB
+                            {% else %}
+                                Supported formats: Excel (.xlsx, .xls), CSV (.csv) | Max file size: 16MB
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div id="file-info" class="alert alert-info d-none">
+                        <strong>{{ '선택된 파일:' if current_language == 'ko' else 'Selected file:' }}</strong> 
+                        <span id="filename"></span> (<span id="filesize"></span>)
+                    </div>
+                    
+                    <hr class="my-4">
+                    
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg" id="uploadBtn">
+                            <i class="bi bi-upload"></i> {{ '업로드' if current_language == 'ko' else 'Upload' }}
+                        </button>
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> {{ '취소' if current_language == 'ko' else 'Cancel' }}
+                        </a>
+                    </div>
+                </form>
+                
+                <div class="mt-4 p-3 bg-light rounded">
+                    <h6 class="fw-bold">
+                        <i class="bi bi-lightbulb"></i> {{ '팁' if current_language == 'ko' else 'Tips' }}
+                    </h6>
+                    <ul class="mb-0 small">
+                        {% if current_language == 'ko' %}
+                            <li>첫 번째 행은 컬럼 이름으로 사용됩니다</li>
+                            <li>데이터는 안전하게 암호화되어 저장됩니다</li>
+                            <li>업로드 후 다양한 그래프로 시각화할 수 있습니다</li>
+                        {% else %}
+                            <li>The first row will be used as column names</li>
+                            <li>Your data will be securely encrypted and stored</li>
+                            <li>After upload, you can visualize your data with various charts</li>
+                        {% endif %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('file').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const fileInfo = document.getElementById('file-info');
+        const filename = document.getElementById('filename');
+        const filesize = document.getElementById('filesize');
+        
+        filename.textContent = file.name;
+        filesize.textContent = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+        fileInfo.classList.remove('d-none');
+    }
+});
+
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    const btn = document.getElementById('uploadBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>{{ '업로드 중...' if current_language == 'ko' else 'Uploading...' }}';
+});
+</script>
+{% endblock %}

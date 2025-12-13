@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if current_language == 'ko' %}
+        홈 - 데이터 분석 플랫폼
+    {% else %}
+        Home - Data Analytics Platform
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="px-4 py-5 my-5 text-center">
+    <i class="bi bi-graph-up-arrow display-1 text-primary"></i>
+    <h1 class="display-5 fw-bold">
+        {{ '데이터 분석 플랫폼' if current_language == 'ko' else 'Data Analytics Platform' }}
+    </h1>
+    <div class="col-lg-6 mx-auto">
+        <p class="lead mb-4">
+            {% if current_language == 'ko' %}
+                엑셀 파일을 업로드하고 손쉽게 데이터를 분석하세요. 
+                다양한 그래프와 시각화 도구를 통해 데이터의 인사이트를 발견할 수 있습니다.
+            {% else %}
+                Upload Excel files and analyze your data with ease. 
+                Discover insights through various charts and visualization tools.
+            {% endif %}
+        </p>
+        <div class="d-grid gap-2 d-sm-flex justify-content-sm-center">
+            <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-4 gap-3">
+                {{ '시작하기' if current_language == 'ko' else 'Get Started' }}
+            </a>
+            <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-lg px-4">
+                {{ '로그인' if current_language == 'ko' else 'Login' }}
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Features Section -->
+<div class="container px-4 py-5">
+    <h2 class="pb-2 border-bottom">
+        {{ '주요 기능' if current_language == 'ko' else 'Key Features' }}
+    </h2>
+    <div class="row g-4 py-5 row-cols-1 row-cols-lg-3">
+        <div class="feature col">
+            <div class="feature-icon d-inline-flex align-items-center justify-content-center text-bg-primary bg-gradient fs-2 mb-3 rounded">
+                <i class="bi bi-cloud-upload p-3"></i>
+            </div>
+            <h3 class="fs-4">
+                {{ '간편한 데이터 업로드' if current_language == 'ko' else 'Easy Data Upload' }}
+            </h3>
+            <p>
+                {% if current_language == 'ko' %}
+                    엑셀(xlsx, xls) 및 CSV 파일을 드래그 앤 드롭으로 쉽게 업로드할 수 있습니다.
+                {% else %}
+                    Upload Excel (xlsx, xls) and CSV files easily with drag and drop.
+                {% endif %}
+            </p>
+        </div>
+        <div class="feature col">
+            <div class="feature-icon d-inline-flex align-items-center justify-content-center text-bg-primary bg-gradient fs-2 mb-3 rounded">
+                <i class="bi bi-bar-chart-line p-3"></i>
+            </div>
+            <h3 class="fs-4">
+                {{ '다양한 시각화' if current_language == 'ko' else 'Diverse Visualizations' }}
+            </h3>
+            <p>
+                {% if current_language == 'ko' %}
+                    라인 차트, 바 차트, 파이 차트 등 다양한 그래프로 데이터를 시각화합니다.
+                {% else %}
+                    Visualize your data with various charts including line, bar, and pie charts.
+                {% endif %}
+            </p>
+        </div>
+        <div class="feature col">
+            <div class="feature-icon d-inline-flex align-items-center justify-content-center text-bg-primary bg-gradient fs-2 mb-3 rounded">
+                <i class="bi bi-database p-3"></i>
+            </div>
+            <h3 class="fs-4">
+                {{ '안전한 데이터 저장' if current_language == 'ko' else 'Secure Data Storage' }}
+            </h3>
+            <p>
+                {% if current_language == 'ko' %}
+                    업로드한 데이터는 안전하게 저장되며 언제든지 다시 확인할 수 있습니다.
+                {% else %}
+                    Your uploaded data is securely stored and accessible anytime.
+                {% endif %}
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}

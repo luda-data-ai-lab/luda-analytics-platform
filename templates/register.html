@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if current_language == 'ko' %}회원가입 - 데이터 분석 플랫폼{% else %}Sign Up - Data Analytics Platform{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-6 col-lg-5">
+        <div class="card shadow">
+            <div class="card-body p-5">
+                <h2 class="text-center mb-4">
+                    <i class="bi bi-person-plus-fill text-primary"></i>
+                    {{ '회원가입' if current_language == 'ko' else 'Sign Up' }}
+                </h2>
+                
+                <form method="POST" action="{{ url_for('register') }}">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">
+                            {{ '이름' if current_language == 'ko' else 'Name' }}
+                        </label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="company_name" class="form-label">
+                            {{ '회사명' if current_language == 'ko' else 'Company Name' }}
+                        </label>
+                        <input type="text" class="form-control" id="company_name" name="company_name" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="email" class="form-label">
+                            {{ '이메일' if current_language == 'ko' else 'Email' }}
+                        </label>
+                        <input type="email" class="form-control" id="email" name="email" required 
+                               placeholder="example@email.com">
+                        <div class="form-text">
+                            {% if current_language == 'ko' %}
+                                로그인 시 사용할 이메일 주소를 입력하세요.
+                            {% else %}
+                                Enter the email address you'll use to login.
+                            {% endif %}
+                        </div>
+                    </div>
+
+                                
+                    <div class="mb-3">
+                        <label for="password" class="form-label">
+                            {{ '비밀번호' if current_language == 'ko' else 'Password' }}
+                        </label>
+                        <input type="password" class="form-control" id="password" name="password" 
+                               required minlength="6">
+                        <div class="form-text">
+                            {% if current_language == 'ko' %}
+                                최소 6자 이상 입력하세요.
+                            {% else %}
+                                Must be at least 6 characters.
+                            {% endif %}
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="password_confirm" class="form-label">
+                            {{ '비밀번호 확인' if current_language == 'ko' else 'Confirm Password' }}
+                        </label>
+                        <input type="password" class="form-control" id="password_confirm" 
+                               name="password_confirm" required>
+                    </div>
+                    
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-person-check"></i>
+                            {{ '가입하기' if current_language == 'ko' else 'Sign Up' }}
+                        </button>
+                    </div>
+                </form>
+                
+                <hr class="my-4">
+                
+                <div class="text-center">
+                    <p class="mb-0">
+                        {{ '이미 계정이 있으신가요?' if current_language == 'ko' else 'Already have an account?' }}
+                        <a href="{{ url_for('login') }}">
+                            {{ '로그인' if current_language == 'ko' else 'Login' }}
+                        </a>
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.querySelector('form').addEventListener('submit', function(e) {
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('password_confirm').value;
+    
+    if (password !== confirmPassword) {
+        e.preventDefault();
+        alert('{{ '비밀번호가 일치하지 않습니다.' if current_language == 'ko' else 'Passwords do not match.' }}');
+    }
+});
+</script>
+{% endblock %}

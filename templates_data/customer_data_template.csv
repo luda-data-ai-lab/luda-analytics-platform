@@ -1,0 +1,6 @@
+Customer_ID,Age,Gender,Income,Segment,Total_Purchases,Avg_Purchase_Value,Last_Purchase_Days
+C001,28,Female,45000,Premium,15,350000,5
+C002,35,Male,65000,Premium,22,420000,3
+C003,42,Female,38000,Standard,8,150000,15
+C004,25,Male,32000,Budget,12,80000,7
+C005,50,Female,75000,Premium,30,520000,2

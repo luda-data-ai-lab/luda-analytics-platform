@@ -1,0 +1,436 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if current_language == 'ko' %}데이터 시각화{% else %}Data Visualization{% endif %} - {{ dataset.name }}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <div class="row">
+        <div class="col-12">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h2>
+                        <i class="bi bi-bar-chart-line text-primary"></i>
+                        {% if current_language == 'ko' %}
+                            데이터 시각화
+                        {% else %}
+                            Data Visualization
+                        {% endif %}
+                    </h2>
+                    <p class="text-muted mb-0">{{ dataset.name }}</p>
+                </div>
+                <a href="{{ url_for('view_dataset', dataset_id=dataset.id) }}" class="btn btn-outline-secondary">
+                    <i class="bi bi-arrow-left"></i>
+                    {% if current_language == 'ko' %}돌아가기{% else %}Back{% endif %}
+                </a>
+            </div>
+
+            <!-- Chart Settings Card -->
+            <div class="card mb-4 shadow-sm border-0">
+                <div class="card-header bg-primary text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-sliders"></i>
+                            {% if current_language == 'ko' %}차트 설정{% else %}Chart Settings{% endif %}
+                        </h5>
+                        <!-- Generate Chart Button (moved here) -->
+                        <button type="button" id="generateBtn" class="btn btn-success">
+                            <i class="bi bi-play-circle"></i>
+                            {% if current_language == 'ko' %}차트 생성{% else %}Generate Chart{% endif %}
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <form id="chartForm">
+                        <div class="row g-3">
+                            <!-- Chart Type -->
+                            <div class="col-md-4">
+                                <label for="chartType" class="form-label fw-bold">
+                                    <i class="bi bi-diagram-3"></i>
+                                    {% if current_language == 'ko' %}차트 타입{% else %}Chart Type{% endif %}
+                                </label>
+                                <select class="form-select" id="chartType" required>
+                                    <option value="">
+                                        {% if current_language == 'ko' %}선택하세요{% else %}Select{% endif %}
+                                    </option>
+                                    <option value="line">
+                                        {% if current_language == 'ko' %}📈 라인 차트{% else %}📈 Line Chart{% endif %}
+                                    </option>
+                                    <option value="bar">
+                                        {% if current_language == 'ko' %}📊 바 차트{% else %}📊 Bar Chart{% endif %}
+                                    </option>
+                                    <option value="scatter">
+                                        {% if current_language == 'ko' %}⚫ 산점도{% else %}⚫ Scatter Plot{% endif %}
+                                    </option>
+                                    <option value="pie">
+                                        {% if current_language == 'ko' %}🥧 파이 차트{% else %}🥧 Pie Chart{% endif %}
+                                    </option>
+                                    <option value="histogram">
+                                        {% if current_language == 'ko' %}📉 히스토그램{% else %}📉 Histogram{% endif %}
+                                    </option>
+                                </select>
+                            </div>
+
+                            <!-- X-axis Column -->
+                            <div class="col-md-4">
+                                <label for="xColumn" class="form-label fw-bold">
+                                    <i class="bi bi-arrow-right"></i>
+                                    <span id="xAxisLabel">
+                                        {% if current_language == 'ko' %}X축 (카테고리){% else %}X-axis (Category){% endif %}
+                                    </span>
+                                </label>
+                                <select class="form-select" id="xColumn" required>
+                                    <option value="">
+                                        {% if current_language == 'ko' %}선택하세요{% else %}Select{% endif %}
+                                    </option>
+                                    {% for column in columns %}
+                                    <option value="{{ column }}">{{ column }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <!-- Y-axis Column -->
+                            <div class="col-md-4" id="yColumnContainer">
+                                <label for="yColumn" class="form-label fw-bold">
+                                    <i class="bi bi-arrow-up"></i>
+                                    <span id="yAxisLabel">
+                                        {% if current_language == 'ko' %}Y축 (값){% else %}Y-axis (Value){% endif %}
+                                    </span>
+                                    <span class="text-muted small" id="optionalLabel" style="display: none;">
+                                        {% if current_language == 'ko' %}(선택사항){% else %}(Optional){% endif %}
+                                    </span>
+                                </label>
+                                <select class="form-select" id="yColumn">
+                                    <option value="">
+                                        {% if current_language == 'ko' %}선택하세요{% else %}Select{% endif %}
+                                    </option>
+                                    {% for column in columns %}
+                                    <option value="{{ column }}">{{ column }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Help Text -->
+                        <div class="alert alert-info mt-3 mb-0" id="chartHelp">
+                            <i class="bi bi-info-circle"></i>
+                            <small id="helpText">
+                                {% if current_language == 'ko' %}
+                                    차트 타입을 선택하세요.
+                                {% else %}
+                                    Select a chart type.
+                                {% endif %}
+                            </small>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Loading Spinner -->
+            <div id="loadingSpinner" class="card shadow-sm border-0 mb-4" style="display: none;">
+                <div class="card-body text-center py-5">
+                    <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3 mb-0">
+                        <strong>
+                            {% if current_language == 'ko' %}차트 생성 중...{% else %}Generating chart...{% endif %}
+                        </strong>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Chart Display Area -->
+            <div id="chartContainer" class="card shadow-sm border-0 mb-4" style="display: none;">
+                <div class="card-header bg-success text-white py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-graph-up"></i>
+                        {% if current_language == 'ko' %}생성된 차트{% else %}Generated Chart{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    <div id="chart" style="width: 100%; height: 600px;"></div>
+                </div>
+            </div>
+
+            <!-- Error Message -->
+            <div id="errorContainer" class="alert alert-danger shadow-sm" style="display: none;">
+                <i class="bi bi-exclamation-triangle"></i>
+                <strong id="errorText"></strong>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script>
+    const datasetId = {{ dataset.id }};
+    const currentLanguage = '{{ current_language }}';
+    
+    // 다국어 메시지
+    const messages = {
+        ko: {
+            selectChartType: '차트 타입을 선택하세요.',
+            lineHelp: 'X축과 Y축 모두 필요합니다. 시간에 따른 변화를 보여줍니다.',
+            barHelp: 'X축(카테고리)과 Y축(값) 모두 필요합니다. 카테고리별 값을 비교합니다.',
+            scatterHelp: 'X축과 Y축 모두 필요합니다. 두 변수 간의 관계를 보여줍니다.',
+            pieHelp: 'X축(카테고리)은 필수입니다. Y축(값)은 선택사항으로, 없으면 빈도수를 계산합니다.',
+            histogramHelp: 'X축만 필요합니다. 데이터의 분포를 보여줍니다.',
+            xAxisLabel: 'X축',
+            yAxisLabel: 'Y축',
+            categoryLabel: '카테고리',
+            valueLabel: '값',
+            optional: '(선택사항)',
+            selectXColumn: 'X축 컬럼을 선택하세요.',
+            selectYColumn: 'Y축 컬럼을 선택하세요.',
+            chartError: '차트 생성 중 오류가 발생했습니다: '
+        },
+        en: {
+            selectChartType: 'Select a chart type.',
+            lineHelp: 'Both X and Y axes required. Shows changes over time.',
+            barHelp: 'Both X-axis (category) and Y-axis (value) required. Compares values across categories.',
+            scatterHelp: 'Both X and Y axes required. Shows relationship between two variables.',
+            pieHelp: 'X-axis (category) is required. Y-axis (value) is optional - frequency will be counted if not provided.',
+            histogramHelp: 'Only X-axis required. Shows distribution of data.',
+            xAxisLabel: 'X-axis',
+            yAxisLabel: 'Y-axis',
+            categoryLabel: 'Category',
+            valueLabel: 'Value',
+            optional: '(Optional)',
+            selectXColumn: 'Please select X-axis column.',
+            selectYColumn: 'Please select Y-axis column.',
+            chartError: 'Error generating chart: '
+        }
+    };
+
+    const msg = messages[currentLanguage];
+
+    // 차트 타입 변경 시
+    document.getElementById('chartType').addEventListener('change', function() {
+        const chartType = this.value;
+        const yColumn = document.getElementById('yColumn');
+        const yColumnContainer = document.getElementById('yColumnContainer');
+        const optionalLabel = document.getElementById('optionalLabel');
+        const helpText = document.getElementById('helpText');
+        const xAxisLabel = document.getElementById('xAxisLabel');
+        const yAxisLabel = document.getElementById('yAxisLabel');
+
+        // 기본 설정
+        yColumn.required = true;
+        optionalLabel.style.display = 'none';
+        yColumnContainer.style.display = 'block';
+
+        // 차트 타입별 설정
+        switch(chartType) {
+            case 'line':
+                helpText.textContent = msg.lineHelp;
+                xAxisLabel.textContent = msg.xAxisLabel;
+                yAxisLabel.textContent = msg.yAxisLabel;
+                break;
+            case 'bar':
+                helpText.textContent = msg.barHelp;
+                xAxisLabel.textContent = msg.xAxisLabel + ' (' + msg.categoryLabel + ')';
+                yAxisLabel.textContent = msg.yAxisLabel + ' (' + msg.valueLabel + ')';
+                break;
+            case 'scatter':
+                helpText.textContent = msg.scatterHelp;
+                xAxisLabel.textContent = msg.xAxisLabel;
+                yAxisLabel.textContent = msg.yAxisLabel;
+                break;
+            case 'pie':
+                helpText.textContent = msg.pieHelp;
+                xAxisLabel.textContent = msg.xAxisLabel + ' (' + msg.categoryLabel + ')';
+                yAxisLabel.textContent = msg.yAxisLabel + ' (' + msg.valueLabel + ')';
+                // 파이 차트는 Y축 선택사항
+                yColumn.required = false;
+                optionalLabel.style.display = 'inline';
+                break;
+            case 'histogram':
+                helpText.textContent = msg.histogramHelp;
+                xAxisLabel.textContent = msg.xAxisLabel;
+                // 히스토그램은 Y축 없음
+                yColumnContainer.style.display = 'none';
+                yColumn.required = false;
+                break;
+            default:
+                helpText.textContent = msg.selectChartType;
+                xAxisLabel.textContent = msg.xAxisLabel;
+                yAxisLabel.textContent = msg.yAxisLabel;
+        }
+    });
+
+    // Generate 버튼 클릭
+    document.getElementById('generateBtn').addEventListener('click', async function(e) {
+        e.preventDefault();
+
+        const chartType = document.getElementById('chartType').value;
+        const xColumn = document.getElementById('xColumn').value;
+        const yColumn = document.getElementById('yColumn').value;
+
+        // 유효성 검사
+        if (!chartType) {
+            alert(msg.selectChartType);
+            return;
+        }
+
+        if (!xColumn) {
+            alert(msg.selectXColumn);
+            return;
+        }
+
+        // 히스토그램과 파이 차트(Y축 미선택)를 제외하고 Y축 필수
+        if (!yColumn && chartType !== 'histogram' && chartType === 'pie') {
+            // 파이 차트는 Y축 없어도 OK (빈도수 계산)
+        } else if (!yColumn && chartType !== 'histogram') {
+            alert(msg.selectYColumn);
+            return;
+        }
+
+        // 로딩 표시
+        document.getElementById('loadingSpinner').style.display = 'block';
+        document.getElementById('chartContainer').style.display = 'none';
+        document.getElementById('errorContainer').style.display = 'none';
+
+        try {
+            const response = await fetch('/api/generate_chart', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    dataset_id: datasetId,
+                    chart_type: chartType,
+                    x_column: xColumn,
+                    y_column: yColumn || null
+                })
+            });
+
+            const data = await response.json();
+
+            if (response.ok) {
+                // 차트 표시
+                const chartData = JSON.parse(data.chart);
+                
+                // 차트 레이아웃에 autosize 설정
+                if (chartData.layout) {
+                    chartData.layout.autosize = true;
+                    chartData.layout.height = 600;  // 명시적 높이 설정
+                    chartData.layout.margin = {l: 60, r: 40, t: 60, b: 60};
+                }
+                
+                // 차트 컨테이너 먼저 표시
+                document.getElementById('chartContainer').style.display = 'block';
+                
+                // 차트 생성
+                Plotly.newPlot('chart', chartData.data, chartData.layout, {
+                    responsive: true,
+                    displayModeBar: true
+                });
+                
+                // 차트 표시 후 리사이즈 (크기 문제 해결)
+                setTimeout(function() {
+                    Plotly.Plots.resize('chart');
+                }, 100);
+                
+                // 스크롤을 차트로 이동
+                setTimeout(function() {
+                    document.getElementById('chartContainer').scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'start' 
+                    });
+                }, 200);
+            } else {
+                // 에러 표시
+                document.getElementById('errorText').textContent = msg.chartError + data.error;
+                document.getElementById('errorContainer').style.display = 'block';
+            }
+        } catch (error) {
+            document.getElementById('errorText').textContent = msg.chartError + error.message;
+            document.getElementById('errorContainer').style.display = 'block';
+        } finally {
+            document.getElementById('loadingSpinner').style.display = 'none';
+        }
+    });
+
+    // 윈도우 리사이즈 시 차트 크기 조정
+    window.addEventListener('resize', function() {
+        if (document.getElementById('chartContainer').style.display !== 'none') {
+            Plotly.Plots.resize('chart');
+        }
+    });
+</script>
+
+<style>
+/* 카드 호버 효과 */
+.card:hover {
+    transform: translateY(-2px);
+    transition: transform 0.2s ease-in-out;
+}
+
+/* 버튼 스타일 */
+#generateBtn {
+    font-weight: 600;
+    padding: 0.5rem 1.5rem;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#generateBtn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    transition: all 0.2s ease-in-out;
+}
+
+/* 폼 요소 간격 */
+.form-select, .form-label {
+    font-size: 0.95rem;
+}
+
+/* 차트 영역 - 가로 길이 100% */
+#chart {
+    width: 100% !important;
+    height: 600px !important;
+    min-height: 600px;
+}
+
+#chartContainer .card-body {
+    padding: 0 !important;
+    min-height: 600px;
+}
+
+/* Plotly 차트가 카드 너비에 맞게 */
+.plotly {
+    width: 100% !important;
+    height: 100% !important;
+}
+
+/* 로딩 스피너 애니메이션 */
+.spinner-border {
+    animation: spinner-border 0.75s linear infinite;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+    #chart {
+        height: 500px !important;
+        min-height: 500px !important;
+    }
+    
+    #chartContainer .card-body {
+        min-height: 500px;
+    }
+    
+    #generateBtn {
+        font-size: 0.875rem;
+        padding: 0.4rem 1rem;
+    }
+}
+
+/* 헤더의 버튼 정렬 */
+.card-header .btn {
+    margin-left: auto;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,274 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if current_language == 'ko' %}분석 예시 보기{% else %}Analysis Examples{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2>
+                <i class="bi bi-book"></i>
+                {% if current_language == 'ko' %}분석 예시 보기{% else %}Analysis Examples{% endif %}
+            </h2>
+            <p class="text-muted">
+                {% if current_language == 'ko' %}
+                    실제 샘플 데이터로 생성된 자동 분석 결과를 미리 확인하세요
+                {% else %}
+                    Preview automated analysis results with real sample data
+                {% endif %}
+            </p>
+        </div>
+    </div>
+
+    <!-- 예시 카드들 -->
+    <div class="row g-4">
+        <!-- 1. 작물 생산량 분석 예시 -->
+        <div class="col-md-6 col-lg-6">
+            <div class="card h-100 shadow hover-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div style="font-size: 3rem; margin-right: 20px;">🌾</div>
+                        <div>
+                            <h4 class="card-title mb-1">
+                                {% if current_language == 'ko' %}작물 생산량 분석{% else %}Crop Yield Analysis{% endif %}
+                            </h4>
+                            <span class="badge bg-success">
+                                {% if current_language == 'ko' %}사용 가능{% else %}Available{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <p class="card-text text-muted">
+                        {% if current_language == 'ko' %}
+                            작물 종류, 토양 타입, 기후 조건에 따른 생산량 분석 예시입니다.
+                            강수량, 기온, 비료 사용량과 생산량의 상관관계를 다양한 차트로 확인할 수 있습니다.
+                        {% else %}
+                            Example analysis of crop yield based on crop type, soil type, and climate conditions.
+                            Visualize correlations between rainfall, temperature, fertilizer usage and yield.
+                        {% endif %}
+                    </p>
+                    
+                    <div class="mt-3">
+                        <h6>
+                            <i class="bi bi-graph-up"></i>
+                            {% if current_language == 'ko' %}포함된 차트:{% else %}Included Charts:{% endif %}
+                        </h6>
+                        <ul class="small">
+                            <li>{% if current_language == 'ko' %}작물별 평균 생산량 (바 차트){% else %}Average Yield by Crop (Bar Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}토양 타입별 생산량 (바 차트){% else %}Yield by Soil Type (Bar Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}강수량 vs 생산량 (산점도){% else %}Rainfall vs Yield (Scatter){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}기온 vs 생산량 (산점도){% else %}Temperature vs Yield (Scatter){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}작물 종류 분포 (파이 차트){% else %}Crop Distribution (Pie Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}비료 사용량 vs 생산량 (산점도){% else %}Fertilizer vs Yield (Scatter){% endif %}</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <a href="{{ url_for('crop_example') }}" class="btn btn-primary">
+                            <i class="bi bi-eye"></i>
+                            {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
+                        </a>
+                        <a href="{{ url_for('download_template', template_name='crop_yield') }}" class="btn btn-outline-success">
+                            <i class="bi bi-download"></i>
+                            {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 판매 데이터 분석 예시 -->
+        <div class="col-md-6 col-lg-6">
+            <div class="card h-100 shadow hover-card opacity-75">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div style="font-size: 3rem; margin-right: 20px;">🛒</div>
+                        <div>
+                            <h4 class="card-title mb-1">
+                                {% if current_language == 'ko' %}판매 데이터 분석{% else %}Sales Data Analysis{% endif %}
+                            </h4>
+                            <span class="badge bg-secondary">
+                                {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <p class="card-text text-muted">
+                        {% if current_language == 'ko' %}
+                            제품별, 지역별 판매 실적 분석 예시입니다.
+                            일별 매출 추이, 카테고리별 성과 등을 시각화합니다.
+                        {% else %}
+                            Sales performance analysis by product and region.
+                            Visualize daily sales trends and category performance.
+                        {% endif %}
+                    </p>
+                    
+                    <div class="mt-3">
+                        <h6>
+                            <i class="bi bi-hourglass-split"></i>
+                            {% if current_language == 'ko' %}예정된 차트:{% else %}Planned Charts:{% endif %}
+                        </h6>
+                        <ul class="small text-muted">
+                            <li>{% if current_language == 'ko' %}일별 매출 추이{% else %}Daily Sales Trends{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}지역별 매출 분석{% else %}Regional Sales Analysis{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}제품별 판매 실적{% else %}Product Performance{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}카테고리별 분포{% else %}Category Distribution{% endif %}</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <button class="btn btn-secondary" disabled>
+                            <i class="bi bi-hourglass-split"></i>
+                            {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                        </button>
+                        <a href="{{ url_for('download_template', template_name='sales_data') }}" class="btn btn-outline-success">
+                            <i class="bi bi-download"></i>
+                            {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. 고객 분석 예시 -->
+        <div class="col-md-6 col-lg-6">
+            <div class="card h-100 shadow hover-card opacity-75">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div style="font-size: 3rem; margin-right: 20px;">👥</div>
+                        <div>
+                            <h4 class="card-title mb-1">
+                                {% if current_language == 'ko' %}고객 분석{% else %}Customer Analysis{% endif %}
+                            </h4>
+                            <span class="badge bg-secondary">
+                                {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <p class="card-text text-muted">
+                        {% if current_language == 'ko' %}
+                            고객 세그멘테이션 및 구매 패턴 분석 예시입니다.
+                            연령대별, 소득별 구매 행동을 분석합니다.
+                        {% else %}
+                            Customer segmentation and purchase pattern analysis.
+                            Analyze purchase behavior by age group and income level.
+                        {% endif %}
+                    </p>
+                    
+                    <div class="mt-3">
+                        <h6>
+                            <i class="bi bi-hourglass-split"></i>
+                            {% if current_language == 'ko' %}예정된 차트:{% else %}Planned Charts:{% endif %}
+                        </h6>
+                        <ul class="small text-muted">
+                            <li>{% if current_language == 'ko' %}고객 세그먼트 분포{% else %}Customer Segment Distribution{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}연령대별 구매 패턴{% else %}Purchase Patterns by Age{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}소득별 지출 분석{% else %}Spending by Income Level{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}구매 빈도 분석{% else %}Purchase Frequency Analysis{% endif %}</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <button class="btn btn-secondary" disabled>
+                            <i class="bi bi-hourglass-split"></i>
+                            {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                        </button>
+                        <a href="{{ url_for('download_template', template_name='customer_data') }}" class="btn btn-outline-success">
+                            <i class="bi bi-download"></i>
+                            {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 마케팅 캠페인 분석 예시 -->
+        <div class="col-md-6 col-lg-6">
+            <div class="card h-100 shadow hover-card opacity-75">
+                <div class="card-body">
+                    <div class="d-flex align-items-center mb-3">
+                        <div style="font-size: 3rem; margin-right: 20px;">📢</div>
+                        <div>
+                            <h4 class="card-title mb-1">
+                                {% if current_language == 'ko' %}마케팅 캠페인 분석{% else %}Marketing Campaign Analysis{% endif %}
+                            </h4>
+                            <span class="badge bg-secondary">
+                                {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                    <p class="card-text text-muted">
+                        {% if current_language == 'ko' %}
+                            마케팅 캠페인 성과 및 ROI 분석 예시입니다.
+                            채널별 효율성과 전환율을 비교 분석합니다.
+                        {% else %}
+                            Marketing campaign performance and ROI analysis.
+                            Compare channel efficiency and conversion rates.
+                        {% endif %}
+                    </p>
+                    
+                    <div class="mt-3">
+                        <h6>
+                            <i class="bi bi-hourglass-split"></i>
+                            {% if current_language == 'ko' %}예정된 차트:{% else %}Planned Charts:{% endif %}
+                        </h6>
+                        <ul class="small text-muted">
+                            <li>{% if current_language == 'ko' %}캠페인별 ROI 비교{% else %}ROI Comparison by Campaign{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}채널별 성과 분석{% else %}Performance by Channel{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}전환율 추이{% else %}Conversion Rate Trends{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}예산 대비 성과{% else %}Performance vs Budget{% endif %}</li>
+                        </ul>
+                    </div>
+
+                    <div class="d-grid gap-2 mt-3">
+                        <button class="btn btn-secondary" disabled>
+                            <i class="bi bi-hourglass-split"></i>
+                            {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                        </button>
+                        <a href="{{ url_for('download_template', template_name='marketing_campaign') }}" class="btn btn-outline-success">
+                            <i class="bi bi-download"></i>
+                            {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 안내 사항 -->
+    <div class="row mt-5 mb-5">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <h5 class="alert-heading">
+                    <i class="bi bi-info-circle"></i>
+                    {% if current_language == 'ko' %}안내{% else %}Note{% endif %}
+                </h5>
+                <p class="mb-0">
+                    {% if current_language == 'ko' %}
+                        예시 화면은 샘플 데이터로 생성된 분석 결과입니다. 
+                        실제 데이터를 업로드하려면 <strong>"템플릿 분석 > 전문 분석"</strong> 메뉴를 이용하세요.
+                    {% else %}
+                        Example screens show analysis results generated from sample data.
+                        To upload your own data, use <strong>"Template Analysis > Professional Analysis"</strong> menu.
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.hover-card {
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+.hover-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,0.15) !important;
+    border-color: #0d6efd;
+}
+.opacity-75 {
+    opacity: 0.85;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,559 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if current_language == 'ko' %}데이터 검증{% else %}Verify Data{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card shadow-sm border-0 bg-gradient">
+                <div class="card-body text-center py-4">
+                    <h2 class="mb-2">
+                        <i class="bi bi-check-circle text-success"></i>
+                        {% if current_language == 'ko' %}추출된 데이터 검증{% else %}Verify Extracted Data{% endif %}
+                    </h2>
+                    <p class="text-muted mb-0">
+                        {% if current_language == 'ko' %}
+                            데이터를 확인하고 필요시 수정한 후 저장하세요
+                        {% else %}
+                            Review the data, make corrections if needed, and save
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <!-- 원본 이미지 카드 -->
+        <div class="col-lg-4 mb-4">
+            <div class="card shadow-sm border-0 h-100">
+                <div class="card-header bg-primary text-white py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-image"></i>
+                        {% if current_language == 'ko' %}원본 이미지{% else %}Original Image{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body p-0 d-flex align-items-center justify-content-center bg-light">
+                    <img src="{{ image_url }}" 
+                         alt="Original Document" 
+                         class="img-fluid w-100" 
+                         style="cursor: zoom-in; max-height: 500px; object-fit: contain;" 
+                         onclick="zoomImage(this)">
+                </div>
+                <div class="card-footer bg-white text-center py-2">
+                    <small class="text-muted">
+                        <i class="bi bi-zoom-in"></i>
+                        {% if current_language == 'ko' %}클릭하여 확대{% else %}Click to zoom{% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <!-- 데이터 영역 -->
+        <div class="col-lg-8 mb-4">
+            <!-- 추출된 데이터 테이블 카드 -->
+            <div class="card shadow-sm border-0 mb-4">
+                <div class="card-header bg-success text-white py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-table"></i>
+                            {% if current_language == 'ko' %}추출된 데이터{% else %}Extracted Data{% endif %}
+                        </h5>
+                        <div>
+                            <span class="badge bg-light text-dark me-2">
+                                <i class="bi bi-list-ol"></i>
+                                {{ data|length }} {% if current_language == 'ko' %}행{% else %}rows{% endif %}
+                            </span>
+                            <span class="badge bg-light text-dark">
+                                <i class="bi bi-layout-three-columns"></i>
+                                {{ data[0]|length if data else 0 }} {% if current_language == 'ko' %}열{% else %}cols{% endif %}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                        <table class="table table-bordered table-hover mb-0" id="dataTable">
+                            <thead class="table-light sticky-top">
+                                <tr>
+                                    <th style="width: 50px;" class="text-center align-middle">
+                                        <i class="bi bi-hash"></i>
+                                    </th>
+                                    {% for col_idx in range(data[0]|length if data else 0) %}
+                                    <th style="min-width: 150px;">
+                                        <input type="text" 
+                                               class="form-control form-control-sm border-0 bg-transparent fw-bold" 
+                                               value="Column {{ col_idx + 1 }}" 
+                                               id="header_{{ col_idx }}"
+                                               placeholder="{% if current_language == 'ko' %}컬럼명{% else %}Column name{% endif %}">
+                                    </th>
+                                    {% endfor %}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row_idx, row in enumerate(data) %}
+                                <tr>
+                                    <td class="text-center text-muted align-middle bg-light">
+                                        <small><strong>{{ row_idx + 1 }}</strong></small>
+                                    </td>
+                                    {% for col_idx, cell in enumerate(row) %}
+                                    <td class="p-1">
+                                        <input type="text" 
+                                               class="form-control form-control-sm cell-input" 
+                                               value="{{ cell }}" 
+                                               id="cell_{{ row_idx }}_{{ col_idx }}"
+                                               data-original="{{ cell }}"
+                                               title="{% if current_language == 'ko' %}수정하려면 클릭{% else %}Click to edit{% endif %}">
+                                    </td>
+                                    {% endfor %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer bg-light py-2">
+                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                        <small class="text-muted">
+                            <i class="bi bi-info-circle"></i>
+                            {% if current_language == 'ko' %}
+                                <kbd>Enter</kbd> 다음 셀 | <kbd>Tab</kbd> 우측 이동 | <kbd>Ctrl+S</kbd> 저장
+                            {% else %}
+                                <kbd>Enter</kbd> Next cell | <kbd>Tab</kbd> Move right | <kbd>Ctrl+S</kbd> Save
+                            {% endif %}
+                        </small>
+                        <small>
+                            <span class="badge bg-warning text-dark">
+                                <i class="bi bi-pencil"></i>
+                                {% if current_language == 'ko' %}수정됨{% else %}Modified{% endif %}
+                            </span>
+                        </small>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 저장 폼 카드 -->
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-info text-white py-3">
+                    <h5 class="mb-0">
+                        <i class="bi bi-save"></i>
+                        {% if current_language == 'ko' %}데이터셋 저장{% else %}Save Dataset{% endif %}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <form id="saveForm" action="{{ url_for('ocr_save', session_id=session_id) }}" method="POST">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-tag-fill text-primary"></i>
+                                    {% if current_language == 'ko' %}데이터셋 이름{% else %}Dataset Name{% endif %}
+                                    <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       name="dataset_name" 
+                                       required
+                                       placeholder="{% if current_language == 'ko' %}예: 매출 데이터 2024-01{% else %}e.g., Sales Data 2024-01{% endif %}">
+                                <div class="form-text">
+                                    {% if current_language == 'ko' %}
+                                        저장할 데이터셋의 이름을 입력하세요
+                                    {% else %}
+                                        Enter a descriptive name for your dataset
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label fw-bold">
+                                    <i class="bi bi-file-text text-secondary"></i>
+                                    {% if current_language == 'ko' %}설명{% else %}Description{% endif %}
+                                    <small class="text-muted">({% if current_language == 'ko' %}선택{% else %}Optional{% endif %})</small>
+                                </label>
+                                <input type="text" 
+                                       class="form-control" 
+                                       name="description"
+                                       placeholder="{% if current_language == 'ko' %}데이터셋에 대한 간단한 설명{% else %}Brief description of the dataset{% endif %}">
+                                <div class="form-text">
+                                    {% if current_language == 'ko' %}
+                                        데이터의 출처나 용도를 기록하세요
+                                    {% else %}
+                                        Record the source or purpose of the data
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 숨겨진 데이터 필드 -->
+                        <input type="hidden" name="data" id="dataJson">
+
+                        <!-- 버튼 그룹 -->
+                        <div class="row g-2">
+                            <div class="col-md-8">
+                                <button type="submit" class="btn btn-success btn-lg w-100">
+                                    <i class="bi bi-check-circle"></i>
+                                    {% if current_language == 'ko' %}데이터셋으로 저장{% else %}Save as Dataset{% endif %}
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <a href="{{ url_for('ocr_scan') }}" class="btn btn-outline-secondary btn-lg w-100">
+                                    <i class="bi bi-arrow-left"></i>
+                                    {% if current_language == 'ko' %}새로 스캔{% else %}New Scan{% endif %}
+                                </a>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="card-footer bg-light py-2">
+                    <small class="text-muted">
+                        <i class="bi bi-lightbulb"></i>
+                        <strong>{% if current_language == 'ko' %}팁:{% else %}Tip:{% endif %}</strong>
+                        {% if current_language == 'ko' %}
+                            저장된 데이터셋은 데이터 분석 페이지에서 사용할 수 있습니다
+                        {% else %}
+                            Saved datasets can be used in the data analysis page
+                        {% endif %}
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 이미지 확대 모달 -->
+<div class="modal fade" id="imageModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-image"></i>
+                    {% if current_language == 'ko' %}원본 이미지{% else %}Original Image{% endif %}
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center bg-dark p-4">
+                <img id="modalImage" src="" alt="Zoomed Image" class="img-fluid rounded" style="max-height: 80vh;">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i>
+                    {% if current_language == 'ko' %}닫기{% else %}Close{% endif %}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// 이미지 확대 모달
+function zoomImage(img) {
+    document.getElementById('modalImage').src = img.src;
+    const modal = new bootstrap.Modal(document.getElementById('imageModal'));
+    modal.show();
+}
+
+// 폼 제출 처리
+document.getElementById('saveForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    
+    // 로딩 표시
+    const submitBtn = this.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>{% if current_language == "ko" %}저장 중...{% else %}Saving...{% endif %}';
+    submitBtn.disabled = true;
+    
+    // 헤더 수집
+    const headers = [];
+    const headerInputs = document.querySelectorAll('[id^="header_"]');
+    headerInputs.forEach(input => {
+        headers.push(input.value.trim());
+    });
+    
+    // 데이터 수집
+    const rows = [];
+    const rowCount = {{ data|length }};
+    const colCount = {{ data[0]|length if data else 0 }};
+    
+    for (let i = 0; i < rowCount; i++) {
+        const row = [];
+        for (let j = 0; j < colCount; j++) {
+            const cell = document.getElementById(`cell_${i}_${j}`);
+            row.push(cell.value.trim());
+        }
+        rows.push(row);
+    }
+    
+    // JSON 생성
+    const data = {
+        headers: headers,
+        rows: rows
+    };
+    
+    document.getElementById('dataJson').value = JSON.stringify(data);
+    
+    console.log('저장할 데이터:', data);
+    
+    // 제출
+    this.submit();
+});
+
+// 키보드 네비게이션
+document.querySelectorAll('input[type="text"]').forEach((input, index, inputs) => {
+    // Enter 키: 다음 셀로 이동
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const nextIndex = index + 1;
+            if (nextIndex < inputs.length) {
+                inputs[nextIndex].focus();
+                inputs[nextIndex].select();
+            }
+        }
+    });
+    
+    // 더블클릭: 전체 선택
+    input.addEventListener('dblclick', function() {
+        this.select();
+    });
+});
+
+// 변경 사항 추적 및 강조
+document.querySelectorAll('.cell-input, [id^="header_"]').forEach(input => {
+    const originalValue = input.dataset.original || input.value;
+    
+    input.addEventListener('input', function() {
+        if (this.value !== originalValue) {
+            // 수정됨 표시
+            this.classList.add('border-warning', 'border-2', 'bg-warning-subtle');
+        } else {
+            // 원래대로 돌아옴
+            this.classList.remove('border-warning', 'border-2', 'bg-warning-subtle');
+        }
+    });
+    
+    // 포커스 효과
+    input.addEventListener('focus', function() {
+        if (!this.classList.contains('border-warning')) {
+            this.classList.add('border-primary', 'shadow-sm');
+        }
+    });
+    
+    input.addEventListener('blur', function() {
+        this.classList.remove('border-primary', 'shadow-sm');
+    });
+});
+
+// Ctrl+S로 저장
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 's') {
+        e.preventDefault();
+        document.getElementById('saveForm').dispatchEvent(new Event('submit', { cancelable: true }));
+    }
+});
+
+// 페이지 나가기 전 경고 (수정사항이 있을 때)
+let formSubmitted = false;
+document.getElementById('saveForm').addEventListener('submit', function() {
+    formSubmitted = true;
+});
+
+window.addEventListener('beforeunload', function(e) {
+    const modifiedCells = document.querySelectorAll('.border-warning');
+    if (modifiedCells.length > 0 && !formSubmitted) {
+        e.preventDefault();
+        e.returnValue = '{% if current_language == "ko" %}수정사항이 저장되지 않았습니다. 페이지를 나가시겠습니까?{% else %}You have unsaved changes. Leave page?{% endif %}';
+        return e.returnValue;
+    }
+});
+
+// 수정된 셀 개수 표시
+function updateModifiedCount() {
+    const modifiedCells = document.querySelectorAll('.border-warning');
+    const badge = document.querySelector('.badge.bg-warning');
+    if (badge) {
+        badge.innerHTML = `<i class="bi bi-pencil"></i> {% if current_language == "ko" %}수정됨{% else %}Modified{% endif %} (${modifiedCells.length})`;
+    }
+}
+
+// 셀 입력 시 수정 개수 업데이트
+document.querySelectorAll('.cell-input').forEach(input => {
+    input.addEventListener('input', updateModifiedCount);
+});
+</script>
+
+<style>
+/* 그라디언트 배경 */
+.bg-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+}
+
+.bg-gradient h2 {
+    color: white;
+}
+
+.bg-gradient .text-muted {
+    color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Sticky 헤더 */
+.sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* 테이블 스타일 */
+.table-bordered th,
+.table-bordered td {
+    vertical-align: middle;
+}
+
+.form-control-sm {
+    font-size: 0.875rem;
+    padding: 0.25rem 0.5rem;
+}
+
+/* 셀 입력 필드 */
+.cell-input {
+    border: 1px solid #dee2e6;
+    transition: all 0.2s ease;
+}
+
+.cell-input:focus {
+    outline: none;
+    box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+    background-color: #f8f9fa;
+}
+
+/* 변경된 셀 */
+.border-2 {
+    border-width: 2px !important;
+}
+
+.bg-warning-subtle {
+    background-color: #fff3cd !important;
+}
+
+/* 행 호버 효과 */
+#dataTable tbody tr:hover {
+    background-color: #f8f9fa;
+}
+
+#dataTable tbody tr:hover .bg-light {
+    background-color: #e9ecef !important;
+}
+
+/* 카드 애니메이션 */
+.card {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15) !important;
+}
+
+/* 버튼 효과 */
+.btn {
+    transition: all 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+/* 키보드 단축키 표시 */
+kbd {
+    padding: 0.2rem 0.4rem;
+    font-size: 0.75rem;
+    color: #fff;
+    background-color: #212529;
+    border-radius: 0.2rem;
+    box-shadow: inset 0 -0.1rem 0 rgba(0, 0, 0, 0.25);
+}
+
+/* 배지 스타일 */
+.badge {
+    font-weight: 600;
+    padding: 0.35em 0.65em;
+}
+
+/* 스피너 */
+.spinner-border-sm {
+    width: 1rem;
+    height: 1rem;
+    border-width: 0.15em;
+}
+
+/* 모달 스타일 */
+.modal-content {
+    overflow: hidden;
+}
+
+.modal-body.bg-dark {
+    background-color: #212529 !important;
+}
+
+/* 반응형 */
+@media (max-width: 768px) {
+    .table-responsive {
+        font-size: 0.75rem;
+    }
+    
+    .form-control-sm {
+        font-size: 0.75rem;
+    }
+    
+    .card-footer small {
+        font-size: 0.7rem;
+    }
+    
+    kbd {
+        font-size: 0.65rem;
+        padding: 0.1rem 0.3rem;
+    }
+}
+
+/* 스크롤바 스타일 */
+.table-responsive::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* 헤더 입력 필드 */
+thead input {
+    text-align: center;
+}
+
+thead input:focus {
+    background-color: white !important;
+}
+
+/* 툴팁 효과 */
+[title] {
+    cursor: help;
+}
+</style>
+{% endblock %}

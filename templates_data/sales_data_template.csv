@@ -1,0 +1,6 @@
+Date,Region,Product,Category,Quantity,Revenue,Cost
+2024-01-01,Seoul,Laptop,Electronics,5,7500000,5000000
+2024-01-01,Busan,Tablet,Electronics,8,4800000,3200000
+2024-01-02,Seoul,Smartphone,Electronics,12,12000000,8000000
+2024-01-02,Incheon,Earphones,Accessories,20,2000000,1200000
+2024-01-03,Daegu,Keyboard,Accessories,15,1500000,900000
