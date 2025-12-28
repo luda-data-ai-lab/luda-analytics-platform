@@ -996,7 +996,7 @@ def ocr_upload():
         print(f"✅ OCR 세션 생성: {ocr_session.id}")
         
         # OCR 처리
-        from ocr_utils import process_ocr_document
+        from src.ocr_utils import process_ocr_document
         
         try:
             # 전처리 옵션 (사용되지 않지만 호환성을 위해 받음)

@@ -1,5 +1,7 @@
 # 📊 Analytics Platform - 템플릿 기반 자동 분석 시스템
 
+lu_dag@lincolnuni.ac.nz/a12345
+
 ## 🎯 전체 시스템 구성
 
 ### 기능 1: 범용 데이터 분석 (기존)

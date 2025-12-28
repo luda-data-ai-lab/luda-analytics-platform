@@ -7,7 +7,7 @@ This script creates database tables and adds initial data.
 """
 
 from app import app, db
-from models_old import User, Dataset, DataRecord, DataView
+from models import User, Dataset, DataRecord, DataView
 from werkzeug.security import generate_password_hash
 
 def init_database():
