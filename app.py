@@ -9,8 +9,6 @@ from datetime import datetime
 import plotly.express as px
 import plotly.graph_objs as go
 from models import db, User, Dataset, DataRecord, DataView, OCRSession
-from werkzeug.utils import secure_filename
-from datetime import datetime
 
 
 
@@ -122,8 +120,22 @@ def logout():
 @app.route('/dashboard')
 @login_required
 def dashboard():
-    datasets = Dataset.query.filter_by(user_id=current_user.id).order_by(Dataset.uploaded_at.desc()).all()
-    return render_template('dashboard.html', datasets=datasets)
+    view = request.args.get('view', 'my')  # 'my' or 'company'
+
+    if view == 'company' and current_user.company:
+        company_user_ids = [
+            u.id for u in User.query.filter_by(company=current_user.company).all()
+        ]
+        datasets = Dataset.query.filter(
+            Dataset.user_id.in_(company_user_ids)
+        ).order_by(Dataset.uploaded_at.desc()).all()
+    else:
+        view = 'my'
+        datasets = Dataset.query.filter_by(
+            user_id=current_user.id
+        ).order_by(Dataset.uploaded_at.desc()).all()
+
+    return render_template('dashboard.html', datasets=datasets, view=view)
 
 # 데이터 업로드
 @app.route('/upload', methods=['GET', 'POST'])

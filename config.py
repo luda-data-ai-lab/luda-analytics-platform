@@ -6,12 +6,9 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     
     # 데이터베이스 설정
-    # 로컬 개발: MySQL
-    SQLALCHEMY_DATABASE_URI = 'mysql+pymysql://root:root@localhost/analytics_db'
-    
-    # SQLite (개발용)
-    # SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-    #     'sqlite:///' + os.path.join(os.path.abspath(os.path.dirname(__file__)), 'analytics.db')
+    # PostgreSQL
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+        'postgresql+psycopg2://postgres:postgres@localhost/analytics_db'
     
     # SQLALCHEMY_TRACK_MODIFICATIONS = False
     

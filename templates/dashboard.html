@@ -8,7 +8,7 @@
 <div class="container mt-4 mb-5">
     <div class="row">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
                 <div>
                     <h2>
                         <i class="bi bi-grid"></i>
@@ -28,6 +28,26 @@
                 </a>
             </div>
 
+            <!-- 내 데이터 / 회사 전체 탭 -->
+            {% if current_user.company %}
+            <ul class="nav nav-tabs mb-4">
+                <li class="nav-item">
+                    <a class="nav-link {% if view == 'my' %}active{% endif %}"
+                       href="{{ url_for('dashboard', view='my') }}">
+                        <i class="bi bi-person"></i>
+                        {% if current_language == 'ko' %}내 데이터{% else %}My Data{% endif %}
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if view == 'company' %}active{% endif %}"
+                       href="{{ url_for('dashboard', view='company') }}">
+                        <i class="bi bi-building"></i>
+                        {% if current_language == 'ko' %}{{ current_user.company }} 전체{% else %}{{ current_user.company }} All{% endif %}
+                    </a>
+                </li>
+            </ul>
+            {% endif %}
+
             {% if datasets %}
             <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
                 {% for dataset in datasets %}
@@ -41,6 +61,11 @@
                             
                             <!-- 제목 -->
                             <h5 class="card-title mb-2">{{ dataset.name }}</h5>
+                            {% if view == 'company' %}
+                            <p class="text-muted small mb-1">
+                                <i class="bi bi-person-circle"></i> {{ dataset.user.name }}
+                            </p>
+                            {% endif %}
                             
                             <!-- 설명 -->
                             <p class="card-text text-muted small mb-3">
@@ -86,12 +111,14 @@
                                     <i class="bi bi-bar-chart"></i>
                                     {% if current_language == 'ko' %}시각화{% else %}Visualize{% endif %}
                                 </a>
+                                {% if dataset.user_id == current_user.id %}
                                 <form action="{{ url_for('delete_dataset', dataset_id=dataset.id) }}" method="POST" onsubmit="return confirm('{% if current_language == 'ko' %}정말 삭제하시겠습니까?{% else %}Are you sure you want to delete?{% endif %}')">
                                     <button type="submit" class="btn btn-sm btn-outline-danger w-100">
                                         <i class="bi bi-trash"></i>
                                         {% if current_language == 'ko' %}삭제{% else %}Delete{% endif %}
                                     </button>
                                 </form>
+                                {% endif %}
                             </div>
                         </div>
                     </div>
