@@ -8,6 +8,10 @@
     --info-color: #0dcaf0;
 }
 
+html {
+    font-size: 14px;
+}
+
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     background-color: #f8f9fa;
@@ -23,8 +27,18 @@ main {
 /* 네비게이션 바 */
 .navbar-brand {
     font-weight: bold;
-    font-size: 1.3rem;
+    font-size: 1.1rem;
 }
+
+.navbar .nav-link {
+    font-size: 0.9rem;
+}
+
+h1 { font-size: 1.7rem; }
+h2 { font-size: 1.4rem; }
+h3 { font-size: 1.2rem; }
+h4 { font-size: 1.1rem; }
+h5 { font-size: 1rem; }
 
 .navbar {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);

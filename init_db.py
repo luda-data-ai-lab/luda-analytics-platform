@@ -9,6 +9,8 @@ This script creates database tables and adds initial data.
 from app import app, db
 from models import User, Dataset, DataRecord, DataView
 from werkzeug.security import generate_password_hash
+import pandas as pd
+import os
 
 def init_database():
     """데이터베이스 초기화"""
@@ -57,6 +59,66 @@ def create_sample_user():
         print(f"   이메일 / Email: test@example.com")
         print(f"   비밀번호 / Password: test1234")
 
+def create_sample_data():
+    """샘플 데이터셋 4종 DB 삽입"""
+    with app.app_context():
+        user = User.query.filter_by(email='test@example.com').first()
+        if not user:
+            print("⚠️  먼저 샘플 사용자를 생성하세요 (옵션 2)")
+            return
+
+        TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), 'templates_data')
+        TEMPLATE_FILES = {
+            '판매 데이터 샘플':     'sales_data_template.csv',
+            '고객 분석 샘플':       'customer_data_template.csv',
+            '마케팅 캠페인 샘플':   'marketing_campaign_template.csv',
+            '곡물 생산량 샘플':     'crop_yield_template.csv',
+        }
+
+        created = 0
+        for name, filename in TEMPLATE_FILES.items():
+            filepath = os.path.join(TEMPLATES_DIR, filename)
+            if not os.path.exists(filepath):
+                print(f"⚠️  파일 없음: {filename}")
+                continue
+
+            # 이미 존재하면 건너뜀
+            if Dataset.query.filter_by(user_id=user.id, name=name).first():
+                print(f"⏭️  이미 존재: {name}")
+                continue
+
+            df = pd.read_csv(filepath)
+            dataset = Dataset(
+                name=name,
+                description=f'샘플 데이터 — {filename}',
+                filename=filename,
+                file_path=filepath,
+                user_id=user.id,
+                row_count=len(df),
+                column_count=len(df.columns),
+                columns=df.columns.tolist(),
+                is_template=True
+            )
+            db.session.add(dataset)
+            db.session.flush()
+
+            import math
+            for _, row in df.iterrows():
+                clean = {}
+                for k, v in row.to_dict().items():
+                    if hasattr(v, 'item'):
+                        v = v.item()
+                    if isinstance(v, float) and math.isnan(v):
+                        v = None
+                    clean[k] = v
+                db.session.add(DataRecord(dataset_id=dataset.id, data=clean))
+
+            db.session.commit()
+            print(f"✅ {name} — {len(df)}행 삽입 완료")
+            created += 1
+
+        print(f"\n총 {created}개 샘플 데이터셋 생성 완료!")
+
 def check_database():
     """데이터베이스 상태 확인"""
     with app.app_context():
@@ -92,25 +154,29 @@ if __name__ == '__main__':
         print("옵션을 선택하세요 / Select an option:")
         print("1. 데이터베이스 초기화 (모든 데이터 삭제) / Initialize DB (Delete all data)")
         print("2. 샘플 사용자 생성 / Create sample user")
-        print("3. 데이터베이스 상태 확인 / Check database status")
-        print("4. 종료 / Exit")
-        
-        choice = input("\n선택 / Choice (1-4): ").strip()
-        
+        print("3. 샘플 데이터 삽입 / Insert sample data")
+        print("4. 데이터베이스 상태 확인 / Check database status")
+        print("5. 종료 / Exit")
+
+        choice = input("\n선택 / Choice (1-5): ").strip()
+
         if choice == '1':
             confirm = input("⚠️  모든 데이터가 삭제됩니다. 계속하시겠습니까? (y/n) / All data will be deleted. Continue? (y/n): ")
             if confirm.lower() == 'y':
                 init_database()
             else:
                 print("취소되었습니다. / Cancelled.")
-        
+
         elif choice == '2':
             create_sample_user()
-        
+
         elif choice == '3':
-            check_database()
-        
+            create_sample_data()
+
         elif choice == '4':
+            check_database()
+
+        elif choice == '5':
             print("종료합니다. / Exiting...")
             break
         

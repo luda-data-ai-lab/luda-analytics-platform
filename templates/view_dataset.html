@@ -74,7 +74,7 @@
                     </div>
                     <h5 class="card-title">{{ '총 레코드' if current_language == 'ko' else 'Total Records' }}</h5>
                     <hr>
-                    <div class="display-4 text-success fw-bold">{{ "{:,}".format(dataset.row_count) }}</div>
+                    <div class="display-4 text-success fw-bold">{{ "{:,}".format(dataset.row_count or 0) }}</div>
                     <small class="text-muted">{{ '행' if current_language == 'ko' else 'rows' }}</small>
                 </div>
             </div>
@@ -106,7 +106,7 @@
                     {{ '데이터 미리보기' if current_language == 'ko' else 'Data Preview' }}
                 </h5>
                 <span class="badge bg-light text-dark">
-                    {{ data|length }} / {{ "{:,}".format(dataset.row_count) }} 
+                    {{ data|length }} / {{ "{:,}".format(dataset.row_count or 0) }} 
                     {{ '행' if current_language == 'ko' else 'rows' }}
                 </span>
             </div>
@@ -147,7 +147,7 @@
                 </small>
                 <small class="text-muted">
                     {{ '전체:' if current_language == 'ko' else 'Total:' }}
-                    <strong>{{ "{:,}".format(dataset.row_count) }}</strong>
+                    <strong>{{ "{:,}".format(dataset.row_count or 0) }}</strong>
                     {{ '행' if current_language == 'ko' else 'rows' }}
                     ×
                     <strong>{{ dataset.column_count }}</strong>

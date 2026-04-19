@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if current_language == 'ko' %}분석 결과 - {{ dataset.name }}{% else %}Analysis Result - {{ dataset.name }}{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+
+    <!-- 헤더 -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2>
+                <i class="bi bi-graph-up-arrow text-primary"></i>
+                {{ dataset.name }}
+            </h2>
+            <p class="text-muted mb-0">
+                {{ dataset.uploaded_at.strftime('%Y-%m-%d %H:%M') }} &nbsp;|&nbsp;
+                {{ "{:,}".format(dataset.row_count or 0) }}
+                {% if current_language == 'ko' %}행{% else %}rows{% endif %}
+            </p>
+        </div>
+        <a href="{{ url_for('template_analysis') }}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i>
+            {% if current_language == 'ko' %}새 분석{% else %}New Analysis{% endif %}
+        </a>
+    </div>
+
+    <!-- 주요 지표 카드 -->
+    {% if metrics %}
+    <div class="row g-3 mb-4">
+        {% if metrics.total_revenue is defined %}
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center p-3">
+                <div class="text-muted small mb-1">{% if current_language == 'ko' %}총 매출액{% else %}Total Revenue{% endif %}</div>
+                <div class="fw-bold fs-5 text-primary">{{ "{:,}".format(metrics.total_revenue) }}</div>
+                {% if metrics.avg_revenue is defined %}
+                <div class="text-muted small">avg {{ "{:,}".format(metrics.avg_revenue) }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% if metrics.total_quantity is defined %}
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center p-3">
+                <div class="text-muted small mb-1">{% if current_language == 'ko' %}총 판매량{% else %}Total Quantity{% endif %}</div>
+                <div class="fw-bold fs-5 text-success">{{ "{:,}".format(metrics.total_quantity) }}</div>
+                {% if metrics.avg_quantity is defined %}
+                <div class="text-muted small">avg {{ metrics.avg_quantity }}</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% if metrics.total_profit is defined %}
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center p-3">
+                <div class="text-muted small mb-1">{% if current_language == 'ko' %}총 이익{% else %}Total Profit{% endif %}</div>
+                <div class="fw-bold fs-5 text-warning">{{ "{:,}".format(metrics.total_profit) }}</div>
+                {% if metrics.profit_margin is defined %}
+                <div class="text-muted small">margin {{ metrics.profit_margin }}%</div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        <div class="col-6 col-md-3">
+            <div class="card border-0 shadow-sm text-center p-3">
+                <div class="text-muted small mb-1">{% if current_language == 'ko' %}레코드 수{% else %}Records{% endif %}</div>
+                <div class="fw-bold fs-5 text-info">{{ "{:,}".format(metrics.total_records) }}</div>
+                {% if metrics.unique_products is defined %}
+                <div class="text-muted small">{{ metrics.unique_products }} products</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 차트 -->
+    {% if charts %}
+    <div class="row g-4 mb-4">
+        {% set chart_keys = [
+            ('daily_sales',        'chart_daily_sales'),
+            ('region_sales',       'chart_region_sales'),
+            ('product_distribution','chart_product_distribution'),
+            ('category_sales',     'chart_category_sales'),
+            ('quantity_revenue',   'chart_quantity_revenue'),
+            ('daily_quantity',     'chart_daily_quantity')
+        ] %}
+        {% for key, div_id in chart_keys %}
+        {% if charts[key] %}
+        <div class="col-12 col-lg-6">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body p-2" id="{{ div_id }}"></div>
+                {% if insights and insights[key] %}
+                {# TODO: Claude API 연동 후 이 블록을 API 응답으로 교체 #}
+                <div class="card-footer bg-light border-0 insight-box" data-chart="{{ key }}">
+                    <small class="text-secondary">
+                        <i class="bi bi-lightbulb-fill text-warning me-1"></i>
+                        {{ insights[key] | safe }}
+                    </small>
+                </div>
+                {% else %}
+                <div class="card-footer bg-light border-0 insight-box insight-placeholder" data-chart="{{ key }}">
+                    <small class="text-secondary fst-italic">
+                        <i class="bi bi-lightbulb text-muted me-1"></i>
+                        {% if current_language == 'ko' %}분석 중...{% else %}Analyzing...{% endif %}
+                    </small>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle"></i>
+        {% if current_language == 'ko' %}
+            생성된 차트가 없습니다. 템플릿 컬럼명을 확인하세요.
+        {% else %}
+            No charts generated. Check template column names.
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- 데이터 테이블 -->
+    {% if data %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-header bg-light">
+            <h6 class="mb-0">
+                <i class="bi bi-table"></i>
+                {% if current_language == 'ko' %}원본 데이터 (상위 100행){% else %}Raw Data (Top 100 rows){% endif %}
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            {% for col in columns %}
+                            <th class="text-nowrap px-3">{{ col }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in data %}
+                        <tr>
+                            {% for col in columns %}
+                            <td class="px-3">{{ row[col] if row[col] is not none else '' }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script>
+function renderChart(divId, chartData) {
+    if (!chartData) return;
+    try {
+        Plotly.newPlot(divId, chartData.data, chartData.layout, {responsive: true});
+    } catch(e) {
+        console.error('Chart render error:', divId, e);
+    }
+}
+{% if charts.daily_sales %}        renderChart('chart_daily_sales',         {{ charts.daily_sales | safe }}); {% endif %}
+{% if charts.region_sales %}       renderChart('chart_region_sales',        {{ charts.region_sales | safe }}); {% endif %}
+{% if charts.product_distribution %}renderChart('chart_product_distribution',{{ charts.product_distribution | safe }}); {% endif %}
+{% if charts.category_sales %}     renderChart('chart_category_sales',      {{ charts.category_sales | safe }}); {% endif %}
+{% if charts.quantity_revenue %}   renderChart('chart_quantity_revenue',    {{ charts.quantity_revenue | safe }}); {% endif %}
+{% if charts.daily_quantity %}     renderChart('chart_daily_quantity',      {{ charts.daily_quantity | safe }}); {% endif %}
+</script>
+
+<style>
+.insight-box {
+    border-top: 1px solid #e9ecef !important;
+    border-radius: 0 0 0.375rem 0.375rem;
+    padding: 0.6rem 1rem;
+    line-height: 1.6;
+}
+.insight-box strong { color: #0d6efd; }
+.insight-placeholder { opacity: 0.6; }
+</style>
+{% endblock %}

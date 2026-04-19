@@ -65,7 +65,7 @@
                     </div>
 
                     <div class="d-grid gap-2 mt-3">
-                        <a href="{{ url_for('crop_example') }}" class="btn btn-primary">
+                        <a href="{{ url_for('example_view', template_type='crop_yield') }}" class="btn btn-primary">
                             <i class="bi bi-eye"></i>
                             {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
                         </a>
@@ -80,7 +80,7 @@
 
         <!-- 2. 판매 데이터 분석 예시 -->
         <div class="col-md-6 col-lg-6">
-            <div class="card h-100 shadow hover-card opacity-75">
+            <div class="card h-100 shadow hover-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <div style="font-size: 3rem; margin-right: 20px;">🛒</div>
@@ -88,8 +88,8 @@
                             <h4 class="card-title mb-1">
                                 {% if current_language == 'ko' %}판매 데이터 분석{% else %}Sales Data Analysis{% endif %}
                             </h4>
-                            <span class="badge bg-secondary">
-                                {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                            <span class="badge bg-success">
+                                {% if current_language == 'ko' %}사용 가능{% else %}Available{% endif %}
                             </span>
                         </div>
                     </div>
@@ -102,25 +102,21 @@
                             Visualize daily sales trends and category performance.
                         {% endif %}
                     </p>
-                    
                     <div class="mt-3">
-                        <h6>
-                            <i class="bi bi-hourglass-split"></i>
-                            {% if current_language == 'ko' %}예정된 차트:{% else %}Planned Charts:{% endif %}
-                        </h6>
-                        <ul class="small text-muted">
-                            <li>{% if current_language == 'ko' %}일별 매출 추이{% else %}Daily Sales Trends{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}지역별 매출 분석{% else %}Regional Sales Analysis{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}제품별 판매 실적{% else %}Product Performance{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}카테고리별 분포{% else %}Category Distribution{% endif %}</li>
+                        <h6><i class="bi bi-graph-up"></i> {% if current_language == 'ko' %}포함된 차트:{% else %}Included Charts:{% endif %}</h6>
+                        <ul class="small">
+                            <li>{% if current_language == 'ko' %}일별 매출 추이 (라인 차트){% else %}Daily Sales Trend (Line Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}지역별 매출 (바 차트){% else %}Revenue by Region (Bar Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}제품별 판매 비율 (파이 차트){% else %}Product Sales Share (Pie Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}카테고리별 매출 (바 차트){% else %}Revenue by Category (Bar Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}판매량 vs 매출액 (산점도){% else %}Quantity vs Revenue (Scatter){% endif %}</li>
                         </ul>
                     </div>
-
                     <div class="d-grid gap-2 mt-3">
-                        <button class="btn btn-secondary" disabled>
-                            <i class="bi bi-hourglass-split"></i>
-                            {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
-                        </button>
+                        <a href="{{ url_for('example_view', template_type='sales_data') }}" class="btn btn-primary">
+                            <i class="bi bi-eye"></i>
+                            {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
+                        </a>
                         <a href="{{ url_for('download_template', template_name='sales_data') }}" class="btn btn-outline-success">
                             <i class="bi bi-download"></i>
                             {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
@@ -132,7 +128,7 @@
 
         <!-- 3. 고객 분석 예시 -->
         <div class="col-md-6 col-lg-6">
-            <div class="card h-100 shadow hover-card opacity-75">
+            <div class="card h-100 shadow hover-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <div style="font-size: 3rem; margin-right: 20px;">👥</div>
@@ -140,8 +136,8 @@
                             <h4 class="card-title mb-1">
                                 {% if current_language == 'ko' %}고객 분석{% else %}Customer Analysis{% endif %}
                             </h4>
-                            <span class="badge bg-secondary">
-                                {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                            <span class="badge bg-success">
+                                {% if current_language == 'ko' %}사용 가능{% else %}Available{% endif %}
                             </span>
                         </div>
                     </div>
@@ -154,25 +150,21 @@
                             Analyze purchase behavior by age group and income level.
                         {% endif %}
                     </p>
-                    
                     <div class="mt-3">
-                        <h6>
-                            <i class="bi bi-hourglass-split"></i>
-                            {% if current_language == 'ko' %}예정된 차트:{% else %}Planned Charts:{% endif %}
-                        </h6>
-                        <ul class="small text-muted">
-                            <li>{% if current_language == 'ko' %}고객 세그먼트 분포{% else %}Customer Segment Distribution{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}연령대별 구매 패턴{% else %}Purchase Patterns by Age{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}소득별 지출 분석{% else %}Spending by Income Level{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}구매 빈도 분석{% else %}Purchase Frequency Analysis{% endif %}</li>
+                        <h6><i class="bi bi-graph-up"></i> {% if current_language == 'ko' %}포함된 차트:{% else %}Included Charts:{% endif %}</h6>
+                        <ul class="small">
+                            <li>{% if current_language == 'ko' %}고객 연령 분포 (히스토그램){% else %}Age Distribution (Histogram){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}세그먼트별 고객 수 (바 차트){% else %}Customers by Segment (Bar Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}성별 비율 (파이 차트){% else %}Gender Ratio (Pie Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}세그먼트별 평균 구매금액{% else %}Avg Purchase Value by Segment{% endif %}</li>
+                            <li>{% if current_language == 'ko' %}소득 vs 구매금액 (산점도){% else %}Income vs Purchase Value (Scatter){% endif %}</li>
                         </ul>
                     </div>
-
                     <div class="d-grid gap-2 mt-3">
-                        <button class="btn btn-secondary" disabled>
-                            <i class="bi bi-hourglass-split"></i>
-                            {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
-                        </button>
+                        <a href="{{ url_for('example_view', template_type='customer_data') }}" class="btn btn-primary">
+                            <i class="bi bi-eye"></i>
+                            {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
+                        </a>
                         <a href="{{ url_for('download_template', template_name='customer_data') }}" class="btn btn-outline-success">
                             <i class="bi bi-download"></i>
                             {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
@@ -184,7 +176,7 @@
 
         <!-- 4. 마케팅 캠페인 분석 예시 -->
         <div class="col-md-6 col-lg-6">
-            <div class="card h-100 shadow hover-card opacity-75">
+            <div class="card h-100 shadow hover-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center mb-3">
                         <div style="font-size: 3rem; margin-right: 20px;">📢</div>
@@ -192,8 +184,8 @@
                             <h4 class="card-title mb-1">
                                 {% if current_language == 'ko' %}마케팅 캠페인 분석{% else %}Marketing Campaign Analysis{% endif %}
                             </h4>
-                            <span class="badge bg-secondary">
-                                {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
+                            <span class="badge bg-success">
+                                {% if current_language == 'ko' %}사용 가능{% else %}Available{% endif %}
                             </span>
                         </div>
                     </div>
@@ -206,25 +198,21 @@
                             Compare channel efficiency and conversion rates.
                         {% endif %}
                     </p>
-                    
                     <div class="mt-3">
-                        <h6>
-                            <i class="bi bi-hourglass-split"></i>
-                            {% if current_language == 'ko' %}예정된 차트:{% else %}Planned Charts:{% endif %}
-                        </h6>
-                        <ul class="small text-muted">
-                            <li>{% if current_language == 'ko' %}캠페인별 ROI 비교{% else %}ROI Comparison by Campaign{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}채널별 성과 분석{% else %}Performance by Channel{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}전환율 추이{% else %}Conversion Rate Trends{% endif %}</li>
-                            <li>{% if current_language == 'ko' %}예산 대비 성과{% else %}Performance vs Budget{% endif %}</li>
+                        <h6><i class="bi bi-graph-up"></i> {% if current_language == 'ko' %}포함된 차트:{% else %}Included Charts:{% endif %}</h6>
+                        <ul class="small">
+                            <li>{% if current_language == 'ko' %}캠페인 매출 추이 (라인 차트){% else %}Campaign Revenue Trend (Line Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}채널별 총 매출 (바 차트){% else %}Revenue by Channel (Bar Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}채널별 캠페인 비율 (파이 차트){% else %}Campaigns by Channel (Pie Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}채널별 전환수 (바 차트){% else %}Conversions by Channel (Bar Chart){% endif %}</li>
+                            <li>{% if current_language == 'ko' %}예산 vs 매출액 (산점도){% else %}Budget vs Revenue (Scatter){% endif %}</li>
                         </ul>
                     </div>
-
                     <div class="d-grid gap-2 mt-3">
-                        <button class="btn btn-secondary" disabled>
-                            <i class="bi bi-hourglass-split"></i>
-                            {% if current_language == 'ko' %}준비 중{% else %}Coming Soon{% endif %}
-                        </button>
+                        <a href="{{ url_for('example_view', template_type='marketing_campaign') }}" class="btn btn-primary">
+                            <i class="bi bi-eye"></i>
+                            {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
+                        </a>
                         <a href="{{ url_for('download_template', template_name='marketing_campaign') }}" class="btn btn-outline-success">
                             <i class="bi bi-download"></i>
                             {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
