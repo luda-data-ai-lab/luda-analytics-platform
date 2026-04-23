@@ -1875,10 +1875,17 @@ def ocr_upload():
             if result['success']:
                 df = result['data']  # DataFrame 가져오기
                 
-                # 데이터를 리스트로 변환
-                data = df.values.tolist()
+                # 데이터를 리스트로 변환 (NaN → None 변환으로 JSON 직렬화 오류 방지)
+                import math
+                def _safe(v):
+                    if isinstance(v, float) and math.isnan(v):
+                        return None
+                    if hasattr(v, 'item'):
+                        v = v.item()
+                    return v
+                data = [[_safe(v) for v in row] for row in df.values.tolist()]
                 columns = df.columns.tolist()
-                
+
                 # 세션에 저장
                 ocr_session.extracted_data = {
                     'data': data,
