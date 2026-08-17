@@ -5,8 +5,11 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
 from markupsafe import Markup, escape
+from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.utils import secure_filename
+from sqlalchemy.exc import SQLAlchemyError
 from config import Config
+import logging
 import pandas as pd
 import json
 import os
@@ -16,6 +19,11 @@ import plotly.graph_objs as go
 from models import db, User, Dataset, DataRecord, DataView, OCRSession
 
 
+logging.basicConfig(
+    level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
+    format='%(asctime)s %(levelname)s [%(name)s] %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -58,7 +66,55 @@ login_manager.login_view = 'login'
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    try:
+        return User.query.get(int(user_id))
+    except (TypeError, ValueError):
+        logger.warning("세션의 사용자 ID가 유효하지 않습니다: %r", user_id)
+        return None
+
+
+def _record_failure(failures, label, exc):
+    """분석 단계의 실패를 로그에 남기고 호출자에게 단계 이름을 전달한다."""
+    logger.exception("%s 생성 실패: %s", label, exc)
+    if failures is not None:
+        failures.append(label)
+
+
+def _flash_analysis_failures(failures):
+    """실패한 단계 이름만 알린다 (예외 상세는 서버 로그에만 남긴다)."""
+    if not failures:
+        return
+    stages = ' / '.join(failures)
+    flash(get_message(
+        f'일부 분석 결과를 생성하지 못했습니다. ({stages})',
+        f'Some analysis results could not be generated. ({stages})'
+    ), 'warning')
+
+
+def _commit_or_flash(error_ko, error_en):
+    """커밋을 시도하고, 실패 시 롤백·로그·flash 후 False 를 반환한다."""
+    try:
+        db.session.commit()
+        return True
+    except SQLAlchemyError:
+        db.session.rollback()
+        logger.exception(error_en)
+        flash(get_message(error_ko, error_en), 'danger')
+        return False
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_file_too_large(error):
+    limit_mb = app.config['MAX_CONTENT_LENGTH'] // (1024 * 1024)
+    logger.warning("업로드 용량 초과: %s", error)
+    flash(get_message(
+        f'파일 크기가 너무 큽니다. (최대 {limit_mb}MB)',
+        f'File is too large. (max {limit_mb}MB)'
+    ), 'danger')
+    referrer = request.referrer
+    if referrer and is_safe_redirect_url(referrer):
+        return redirect(referrer)
+    return redirect(url_for('index'))
 
 # 언어 설정
 @app.before_request
@@ -134,10 +190,11 @@ def register():
         
         user = User(email=email, name=name, company=company)
         user.set_password(password)
-        
+
         db.session.add(user)
-        db.session.commit()
-        
+        if not _commit_or_flash('회원가입 처리 중 오류가 발생했습니다.', 'Registration failed.'):
+            return redirect(url_for('register'))
+
         flash(get_message('회원가입이 완료되었습니다!', 'Registration successful!'), 'success')
         return redirect(url_for('login'))
     
@@ -219,9 +276,16 @@ def upload():
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"{current_user.id}_{timestamp}_{filename}"
             filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            
-            file.save(filepath)
-            
+
+            try:
+                os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+                file.save(filepath)
+            except OSError:
+                logger.exception("업로드 파일 저장 실패: %s", filepath)
+                flash(get_message('파일을 저장할 수 없습니다. 잠시 후 다시 시도해주세요.',
+                                  'Could not save the file. Please try again later.'), 'danger')
+                return redirect(url_for('upload'))
+
             try:
                 # 파일 읽기
                 if filename.endswith('.csv'):
@@ -255,17 +319,25 @@ def upload():
                 flash(get_message('데이터가 성공적으로 업로드되었습니다!', 'Data uploaded successfully!'), 'success')
                 return redirect(url_for('view_dataset', dataset_id=dataset.id))
             
-            except Exception as e:
+            except Exception:
                 db.session.rollback()
-                print(f"파일 처리 오류 / File processing error: {e}")
+                logger.exception("데이터 업로드 실패: %s", filepath)
                 flash(get_message('파일 처리 중 오류가 발생했습니다.', 'Error processing file.'), 'danger')
-                if os.path.exists(filepath):
-                    os.remove(filepath)
+                _remove_file(filepath)
                 return redirect(url_for('upload'))
         else:
             flash(get_message('허용되지 않는 파일 형식입니다.', 'Invalid file format.'), 'danger')
     
     return render_template('upload.html')
+
+def _remove_file(path):
+    """임시/업로드 파일 삭제 — 실패는 치명적이지 않지만 반드시 로그로 남긴다."""
+    try:
+        if path and os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        logger.warning("파일 삭제 실패: %s", path, exc_info=True)
+
 
 def _fix_dataset_meta(dataset):
     """columns/row_count가 None인 경우 DataRecord에서 복구"""
@@ -277,7 +349,11 @@ def _fix_dataset_meta(dataset):
             dataset.columns = cols
             dataset.row_count = count
             dataset.column_count = len(cols)
-            db.session.commit()
+            try:
+                db.session.commit()
+            except SQLAlchemyError:
+                db.session.rollback()
+                logger.exception("데이터셋 메타데이터 복구 실패: dataset_id=%s", dataset.id)
 
 # 데이터셋 보기
 @app.route('/dataset/<int:dataset_id>')
@@ -314,11 +390,18 @@ def visualize(dataset_id):
 @login_required
 def generate_chart():
     try:
-        data = request.json
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return jsonify({'error': get_message('요청 본문이 유효한 JSON이 아닙니다.', 'Request body is not valid JSON.')}), 400
+
         dataset_id = data.get('dataset_id')
         chart_type = data.get('chart_type')
         x_column = data.get('x_column')
         y_column = data.get('y_column')
+
+        if not dataset_id or not chart_type or not x_column:
+            return jsonify({'error': get_message('dataset_id, chart_type, x_column은 필수입니다.',
+                                                 'dataset_id, chart_type and x_column are required.')}), 400
         
         print(f"\n=== 차트 생성 요청 / Chart Generation Request ===")
         print(f"Dataset ID: {dataset_id}")
@@ -390,8 +473,9 @@ def generate_chart():
                                     raise ValueError("Not enough valid dates")
                             else:
                                 raise ValueError("No date separator found")
-                        except:
+                        except (ValueError, TypeError, IndexError, KeyError) as date_error:
                             # 날짜 변환 실패 -> 숫자 변환 시도
+                            logger.debug("Y축 날짜 변환 실패(숫자로 재시도): %s", date_error)
                             df[y_column] = df[y_column].astype(str).str.replace(',', '').str.replace(' ', '')
                             df[y_column] = pd.to_numeric(df[y_column], errors='coerce')
                             print(f"Y 컬럼을 숫자로 변환함")
@@ -424,8 +508,8 @@ def generate_chart():
                                     df[x_column] = temp_x
                                     is_x_date = True
                                     print(f"✅ X축을 날짜로 변환함")
-                        except:
-                            pass
+                        except (ValueError, TypeError, IndexError, KeyError) as date_error:
+                            logger.debug("X축 날짜 변환 실패(원본 값 사용): %s", date_error)
             
             elif chart_type == 'pie':
                 # 파이 차트는 values를 숫자로 변환, names는 문자열로 유지
@@ -439,8 +523,12 @@ def generate_chart():
                 print(f"파이 차트 X를 문자열로 유지: {df[x_column].dtype}")
                 print(f"X 값 샘플: {df[x_column].head(3).tolist()}")
         
-        except Exception as conv_error:
-            print(f"⚠️  데이터 변환 경고 / Data conversion warning: {conv_error}")
+        except Exception:
+            logger.exception("데이터 변환 실패: dataset_id=%s, x=%s, y=%s", dataset_id, x_column, y_column)
+            return jsonify({'error': get_message(
+                '선택한 컬럼을 차트용 데이터로 변환하지 못했습니다.',
+                'Could not convert the selected columns into chart data.'
+            )}), 400
         
         # NaN 값 제거
         before_dropna = len(df)
@@ -468,8 +556,9 @@ def generate_chart():
                     print(f"X축 기준으로 정렬됨")
                     # 인덱스 리셋 (중요!)
                     df = df.reset_index(drop=True)
-            except Exception as sort_error:
-                print(f"정렬 실패: {sort_error}")
+            except (TypeError, ValueError, KeyError):
+                # 정렬은 부가 기능이므로 차트는 계속 생성하되, 원인은 로그로 남긴다.
+                logger.warning("X축 정렬 실패: dataset_id=%s, column=%s", dataset_id, x_column, exc_info=True)
         
         print(f"\n최종 데이터 샘플 (처음 5행):")
         print(df[[x_column, y_column] if y_column else [x_column]].head(5))
@@ -590,19 +679,17 @@ def generate_chart():
 
             return jsonify({'chart': graphJSON})
         
-        except Exception as plot_error:
-            error_msg = str(plot_error)
-            print(f"❌ 차트 생성 오류 / Chart creation error: {error_msg}")
-            import traceback
-            traceback.print_exc()
+        except Exception:
+            logger.exception("차트 생성 오류: dataset_id=%s, chart_type=%s", dataset_id, chart_type)
             return jsonify({'error': get_message('차트 생성에 실패했습니다.', 'Chart creation failed.')}), 400
-    
-    except Exception as e:
-        error_msg = str(e)
-        print(f"❌ 전체 오류 / General error: {error_msg}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': get_message('오류가 발생했습니다.', 'An error occurred.')}), 400
+
+    except HTTPException:
+        # get_or_404 등 Flask가 만든 응답 코드는 그대로 전달한다.
+        raise
+    except Exception:
+        logger.exception("차트 API 처리 중 예상하지 못한 오류: %s", request.path)
+        return jsonify({'error': get_message('서버 오류로 차트를 생성하지 못했습니다.',
+                                             'The chart could not be generated due to a server error.')}), 500
 
 # 템플릿 기반 시각화 - 메인 페이지
 @app.route('/template')
@@ -714,9 +801,16 @@ def upload_template():
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         filename = f"{current_user.id}_template_{timestamp}_{filename}"
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        file.save(filepath)
-        
+
+        try:
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            file.save(filepath)
+        except OSError:
+            logger.exception("템플릿 파일 저장 실패: %s", filepath)
+            flash(get_message('파일을 저장할 수 없습니다. 잠시 후 다시 시도해주세요.',
+                              'Could not save the file. Please try again later.'), 'danger')
+            return redirect(url_for('template_dashboard'))
+
         try:
             # 파일 읽기
             df = pd.read_excel(filepath)
@@ -748,12 +842,11 @@ def upload_template():
             flash(get_message('템플릿이 성공적으로 업로드되었습니다!', 'Template uploaded successfully!'), 'success')
             return redirect(url_for('view_template_analysis', dataset_id=dataset.id))
         
-        except Exception as e:
+        except Exception:
             db.session.rollback()
-            print(f"템플릿 파일 처리 오류 / Template processing error: {e}")
+            logger.exception("템플릿 업로드 실패: %s", filepath)
             flash(get_message('파일 처리 중 오류가 발생했습니다.', 'Error processing file.'), 'danger')
-            if os.path.exists(filepath):
-                os.remove(filepath)
+            _remove_file(filepath)
             return redirect(url_for('template_dashboard'))
     else:
         flash(get_message('허용되지 않는 파일 형식입니다.', 'Invalid file format.'), 'danger')
@@ -773,10 +866,12 @@ def view_template_analysis(dataset_id):
     records = DataRecord.query.filter_by(dataset_id=dataset_id).all()
     df = pd.DataFrame([record.data for record in records])
     
-    # 자동으로 차트 생성
-    charts   = generate_template_charts(df)
-    metrics  = calculate_metrics(df)
-    insights = generate_insights(df)
+    # 자동으로 차트 생성 (생성 실패는 사용자에게 알린다)
+    failures = []
+    charts   = generate_template_charts(df, failures)
+    metrics  = calculate_metrics(df, failures)
+    insights = generate_insights(df, failures)
+    _flash_analysis_failures(failures)
 
     return render_template('template_result.html',
                          dataset=dataset,
@@ -897,7 +992,7 @@ def _detect_template_type(df):
     return 'generic'
 
 # 템플릿 차트 자동 생성 함수
-def generate_template_charts(df):
+def generate_template_charts(df, failures=None):
     charts = {}
     common_layout = dict(
         height=380,
@@ -924,10 +1019,8 @@ def generate_template_charts(df):
         else:
             _charts_generic(df, charts, common_layout)
 
-    except Exception as e:
-        import traceback
-        print(f"차트 생성 오류: {e}")
-        traceback.print_exc()
+    except Exception as exc:
+        _record_failure(failures, get_message('차트', 'Charts'), exc)
 
     return charts
 
@@ -1363,7 +1456,7 @@ def _charts_generic(df, charts, layout):
         charts['product_distribution'] = fig.to_json()
 
 # 주요 지표 계산 함수 (4개 템플릿 전체 지원)
-def calculate_metrics(df):
+def calculate_metrics(df, failures=None):
     metrics = {}
     try:
         ttype = _detect_template_type(df)
@@ -1429,15 +1522,15 @@ def calculate_metrics(df):
             if col_seg:
                 metrics['unique_products'] = df[col_seg].nunique()
 
-    except Exception as e:
-        print(f"지표 계산 오류: {e}")
+    except Exception as exc:
+        _record_failure(failures, get_message('지표', 'Metrics'), exc)
 
     return metrics
 
 # ── 차트별 인사이트 자동 생성 ──────────────────────────────────────
 # TODO: 추후 Claude API 연동으로 교체 예정
 # 각 chart_key → 분석 텍스트 반환 (template_result.html에서 카드 하단에 표시)
-def generate_insights(df):
+def generate_insights(df, failures=None):
     insights = {}
     try:
         ttype = _detect_template_type(df)
@@ -1449,8 +1542,8 @@ def generate_insights(df):
             insights.update(_insights_marketing(df))
         elif ttype == 'customer':
             insights.update(_insights_customer(df))
-    except Exception as e:
-        print(f"인사이트 생성 오류: {e}")
+    except Exception as exc:
+        _record_failure(failures, get_message('인사이트', 'Insights'), exc)
     return insights
 
 
@@ -1861,33 +1954,32 @@ def ocr_upload():
             else:
                 # OCR 실패 처리
                 error_msg = result.get('error', '알 수 없는 오류')
-                print(f"❌ OCR 실패: {error_msg}")
-                
+                logger.error("OCR 실패: session_id=%s, %s", ocr_session.id, error_msg)
+
                 ocr_session.status = 'failed'
                 ocr_session.error_message = error_msg
-                db.session.commit()
+                _commit_or_flash('OCR 상태를 저장하지 못했습니다.', 'Could not persist the OCR status.')
                 
                 flash('OCR 처리에 실패했습니다.' if session.get('language') == 'ko' else 'OCR processing failed.', 'danger')
                 return redirect(url_for('ocr_scan'))
         
         except Exception as e:
-            print(f"❌ OCR 처리 오류: {e}")
-            import traceback
-            traceback.print_exc()
-            
+            logger.exception("OCR 처리 오류: session_id=%s, file=%s", ocr_session.id, filepath)
+
+            db.session.rollback()
             ocr_session.status = 'failed'
             ocr_session.error_message = str(e)
-            db.session.commit()
+            _commit_or_flash('OCR 상태를 저장하지 못했습니다.', 'Could not persist the OCR status.')
             
             flash('OCR 처리 중 오류가 발생했습니다.' if session.get('language') == 'ko' else 'OCR processing error.', 'danger')
             return redirect(url_for('ocr_scan'))
     
     except Exception as e:
-        print(f"❌ 파일 업로드 오류: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        flash('파일 업로드 중 오류가 발생했습니다.' if session.get('language') == 'ko' else 'File upload error.', 'danger')
+        db.session.rollback()
+        logger.exception("OCR 파일 업로드 오류")
+
+        flash(f'파일 업로드 중 오류가 발생했습니다: {e}' if session.get('language') == 'ko'
+              else f'File upload error: {e}', 'danger')
         return redirect(url_for('ocr_scan'))
     
     # ✅ 이 부분은 절대 실행되지 않지만, 안전을 위해 추가
@@ -1940,8 +2032,15 @@ def ocr_save(session_id):
             return redirect(url_for('ocr_verify', session_id=session_id))
         
         # JSON 파싱
-        import json
-        data_dict = json.loads(data_json)
+        try:
+            data_dict = json.loads(data_json)
+        except (json.JSONDecodeError, TypeError):
+            logger.warning("OCR 저장 요청의 data 필드가 유효한 JSON이 아닙니다: session_id=%s", session_id,
+                           exc_info=True)
+            flash('전송된 데이터 형식이 올바르지 않습니다.' if session.get('language') == 'ko'
+                  else 'The submitted data format is invalid.', 'danger')
+            return redirect(url_for('ocr_verify', session_id=session_id))
+
         headers = data_dict.get('headers', [])
         rows = data_dict.get('rows', [])
         
@@ -1980,9 +2079,9 @@ def ocr_save(session_id):
         flash('데이터가 성공적으로 저장되었습니다!' if session.get('language') == 'ko' else 'Data saved successfully!', 'success')
         return redirect(url_for('dashboard'))
     
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        print(f"데이터 저장 오류: {e}")
+        logger.exception("OCR 데이터 저장 오류: session_id=%s", session_id)
         flash('데이터 저장 중 오류가 발생했습니다.' if session.get('language') == 'ko' else 'Error saving data.', 'danger')
         return redirect(url_for('ocr_verify', session_id=session_id))
 
@@ -2082,8 +2181,10 @@ def download_template(template_name):
             download_name=filename
         )
     
-    except Exception as e:
-        print(f"템플릿 다운로드 오류: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception:
+        logger.exception("템플릿 다운로드 오류: %s", template_name)
         flash('템플릿 다운로드 중 오류가 발생했습니다.' if session.get('language') == 'ko' else 'Error downloading template.', 'danger')
         return redirect(url_for('template_analysis'))
 
@@ -2119,8 +2220,16 @@ def template_analyze():
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         unique_filename = f"template_{template_type}_{timestamp}_{filename}"
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(file_path)
-        
+
+        try:
+            os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+            file.save(file_path)
+        except OSError:
+            logger.exception("템플릿 파일 저장 실패: %s", file_path)
+            flash('파일을 저장할 수 없습니다. 잠시 후 다시 시도해주세요.' if session.get('language') == 'ko'
+                  else 'Could not save the file. Please try again later.', 'danger')
+            return redirect(url_for('template_analysis'))
+
         print(f"✅ 템플릿 파일 저장: {file_path}")
         
         # 데이터 읽기
@@ -2171,11 +2280,12 @@ def template_analyze():
             flash('파일이 성공적으로 업로드되었습니다.' if session.get('language') == 'ko' else 'File uploaded successfully.', 'success')
             return redirect(url_for('template_analysis'))
     
-    except Exception as e:
-        print(f"❌ 템플릿 분석 오류: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
+    except HTTPException:
+        raise
+    except Exception:
+        db.session.rollback()
+        logger.exception("템플릿 분석 오류: template_type=%s", request.form.get('template_type'))
+
         flash('오류가 발생했습니다.' if session.get('language') == 'ko' else 'An error occurred.', 'danger')
         return redirect(url_for('template_analysis'))
 
@@ -2205,8 +2315,9 @@ def example_view(template_type):
         return redirect(url_for('examples'))
 
     df = pd.read_csv(sample_file)
-    charts  = generate_template_charts(df)
-    metrics = calculate_metrics(df)
+    failures = []
+    charts  = generate_template_charts(df, failures)
+    metrics = calculate_metrics(df, failures)
 
     from types import SimpleNamespace
     from datetime import datetime as dt
@@ -2216,7 +2327,8 @@ def example_view(template_type):
         row_count=len(df)
     )
 
-    insights = generate_insights(df)
+    insights = generate_insights(df, failures)
+    _flash_analysis_failures(failures)
 
     return render_template('template_result.html',
                            dataset=fake_dataset,
