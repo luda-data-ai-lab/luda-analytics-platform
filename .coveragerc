@@ -1,0 +1,13 @@
+[run]
+source = .
+omit =
+    venv/*
+    tests/*
+    src/create_sample_data.py
+    src/migrate_ocr_db.py
+    src/models_old.py
+    src/ocr_routes.py
+
+[report]
+show_missing = True
+skip_covered = False

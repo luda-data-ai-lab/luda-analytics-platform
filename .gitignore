@@ -62,3 +62,8 @@ logs/
 # Backup files
 *.bak
 *.backup
+
+# Test artifacts
+.coverage
+htmlcov/
+.pytest_cache/
