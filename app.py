@@ -1,5 +1,10 @@
+import re
+from urllib.parse import urljoin, urlparse
+
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_wtf.csrf import CSRFProtect
+from markupsafe import Markup, escape
 from werkzeug.utils import secure_filename
 from config import Config
 import pandas as pd
@@ -14,6 +19,34 @@ from models import db, User, Dataset, DataRecord, DataView, OCRSession
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# CSRF 보호 (모든 상태 변경 요청)
+csrf = CSRFProtect(app)
+
+EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+MIN_PASSWORD_LENGTH = 8
+
+# 인사이트 문구에서 허용하는 태그만 복원하는 화이트리스트 (업로드 데이터 기반 XSS 방지)
+_ALLOWED_INSIGHT_TAGS = ('strong', 'em', 'br')
+
+
+@app.template_filter('insight_html')
+def insight_html(value):
+    """인사이트 문구를 이스케이프하고 서식용 태그만 허용"""
+    if not value:
+        return ''
+    safe = str(escape(value))
+    for tag in _ALLOWED_INSIGHT_TAGS:
+        safe = safe.replace(f'&lt;{tag}&gt;', f'<{tag}>').replace(f'&lt;/{tag}&gt;', f'</{tag}>')
+    return Markup(safe)
+
+
+def is_safe_redirect_url(target):
+    """같은 호스트로의 상대 경로만 리다이렉트 허용 (open redirect 방지)"""
+    if not target:
+        return False
+    parsed = urlparse(urljoin(request.host_url, target))
+    return parsed.scheme in ('http', 'https') and parsed.netloc == urlparse(request.host_url).netloc
 
 # 데이터베이스 초기화
 db.init_app(app)
@@ -37,7 +70,10 @@ def before_request():
 def set_language(language):
     if language in app.config['LANGUAGES']:
         session['language'] = language
-    return redirect(request.referrer or url_for('index'))
+    referrer = request.referrer
+    if referrer and is_safe_redirect_url(referrer):
+        return redirect(referrer)
+    return redirect(url_for('index'))
 
 @app.context_processor
 def inject_language():
@@ -65,11 +101,33 @@ def register():
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        name = request.form.get('name')
-        company = request.form.get('company', '')  # 회사명 추가 (선택사항)
-        
+        email = (request.form.get('email') or '').strip()
+        password = request.form.get('password') or ''
+        name = (request.form.get('name') or '').strip()
+        company = (request.form.get('company') or '').strip()  # 회사명 추가 (선택사항)
+
+        if not email or not password or not name:
+            flash(get_message('이메일, 이름, 비밀번호를 모두 입력해주세요.', 'Email, name and password are required.'), 'danger')
+            return redirect(url_for('register'))
+
+        if not EMAIL_RE.match(email) or len(email) > 120:
+            flash(get_message('올바른 이메일 주소를 입력해주세요.', 'Please enter a valid email address.'), 'danger')
+            return redirect(url_for('register'))
+
+        if len(password) < MIN_PASSWORD_LENGTH:
+            flash(
+                get_message(
+                    f'비밀번호는 최소 {MIN_PASSWORD_LENGTH}자 이상이어야 합니다.',
+                    f'Password must be at least {MIN_PASSWORD_LENGTH} characters long.',
+                ),
+                'danger',
+            )
+            return redirect(url_for('register'))
+
+        if len(name) > 100 or len(company) > 100:
+            flash(get_message('이름 또는 회사명이 너무 깁니다.', 'Name or company is too long.'), 'danger')
+            return redirect(url_for('register'))
+
         if User.query.filter_by(email=email).first():
             flash(get_message('이미 등록된 이메일입니다.', 'Email already registered.'), 'danger')
             return redirect(url_for('register'))
@@ -92,17 +150,19 @@ def login():
         return redirect(url_for('dashboard'))
     
     if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        remember = request.form.get('remember', False)
-        
+        email = (request.form.get('email') or '').strip()
+        password = request.form.get('password') or ''
+        remember = bool(request.form.get('remember', False))
+
         user = User.query.filter_by(email=email).first()
-        
+
         if user and user.check_password(password):
             login_user(user, remember=remember)
             flash(get_message('로그인 되었습니다.', 'Successfully logged in.'), 'success')
             next_page = request.args.get('next')
-            return redirect(next_page or url_for('dashboard'))
+            if next_page and is_safe_redirect_url(next_page):
+                return redirect(next_page)
+            return redirect(url_for('dashboard'))
         else:
             flash(get_message('이메일 또는 비밀번호가 올바르지 않습니다.', 'Invalid email or password.'), 'danger')
     
@@ -197,7 +257,8 @@ def upload():
             
             except Exception as e:
                 db.session.rollback()
-                flash(get_message(f'파일 처리 중 오류가 발생했습니다: {str(e)}', f'Error processing file: {str(e)}'), 'danger')
+                print(f"파일 처리 오류 / File processing error: {e}")
+                flash(get_message('파일 처리 중 오류가 발생했습니다.', 'Error processing file.'), 'danger')
                 if os.path.exists(filepath):
                     os.remove(filepath)
                 return redirect(url_for('upload'))
@@ -637,14 +698,14 @@ def generate_chart():
             print(f"❌ 차트 생성 오류 / Chart creation error: {error_msg}")
             import traceback
             traceback.print_exc()
-            return jsonify({'error': get_message(f'차트 생성 실패: {error_msg}', f'Chart creation failed: {error_msg}')}), 400
+            return jsonify({'error': get_message('차트 생성에 실패했습니다.', 'Chart creation failed.')}), 400
     
     except Exception as e:
         error_msg = str(e)
         print(f"❌ 전체 오류 / General error: {error_msg}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': get_message(f'오류 발생: {error_msg}', f'Error occurred: {error_msg}')}), 400
+        return jsonify({'error': get_message('오류가 발생했습니다.', 'An error occurred.')}), 400
 
 # 템플릿 기반 시각화 - 메인 페이지
 @app.route('/template')
@@ -792,7 +853,8 @@ def upload_template():
         
         except Exception as e:
             db.session.rollback()
-            flash(get_message(f'파일 처리 중 오류가 발생했습니다: {str(e)}', f'Error processing file: {str(e)}'), 'danger')
+            print(f"템플릿 파일 처리 오류 / Template processing error: {e}")
+            flash(get_message('파일 처리 중 오류가 발생했습니다.', 'Error processing file.'), 'danger')
             if os.path.exists(filepath):
                 os.remove(filepath)
             return redirect(url_for('template_dashboard'))
@@ -1908,7 +1970,7 @@ def ocr_upload():
                 ocr_session.error_message = error_msg
                 db.session.commit()
                 
-                flash(f'OCR 처리 실패: {error_msg}' if session.get('language') == 'ko' else f'OCR failed: {error_msg}', 'danger')
+                flash('OCR 처리에 실패했습니다.' if session.get('language') == 'ko' else 'OCR processing failed.', 'danger')
                 return redirect(url_for('ocr_scan'))
         
         except Exception as e:
@@ -1920,7 +1982,7 @@ def ocr_upload():
             ocr_session.error_message = str(e)
             db.session.commit()
             
-            flash(f'OCR 처리 중 오류가 발생했습니다: {str(e)}' if session.get('language') == 'ko' else f'OCR processing error: {str(e)}', 'danger')
+            flash('OCR 처리 중 오류가 발생했습니다.' if session.get('language') == 'ko' else 'OCR processing error.', 'danger')
             return redirect(url_for('ocr_scan'))
     
     except Exception as e:
@@ -2024,14 +2086,25 @@ def ocr_save(session_id):
     except Exception as e:
         db.session.rollback()
         print(f"데이터 저장 오류: {e}")
-        flash(f'데이터 저장 중 오류가 발생했습니다: {str(e)}' if session.get('language') == 'ko' else f'Error saving data: {str(e)}', 'danger')
+        flash('데이터 저장 중 오류가 발생했습니다.' if session.get('language') == 'ko' else 'Error saving data.', 'danger')
         return redirect(url_for('ocr_verify', session_id=session_id))
 
 # 업로드된 파일 제공
 @app.route('/uploads/<filename>')
 @login_required
 def uploaded_file(filename):
-    """업로드된 파일 제공"""
+    """업로드된 파일 제공 (본인이 업로드한 파일만)"""
+    if filename != secure_filename(filename):
+        return redirect(url_for('dashboard'))
+
+    expected_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    owns_dataset = Dataset.query.filter_by(user_id=current_user.id, file_path=expected_path).first()
+    owns_ocr_file = OCRSession.query.filter_by(user_id=current_user.id, filename=filename).first()
+
+    if not owns_dataset and not owns_ocr_file:
+        flash(get_message('접근 권한이 없습니다.', 'Access denied.'), 'danger')
+        return redirect(url_for('dashboard'))
+
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 
@@ -2206,7 +2279,7 @@ def template_analyze():
         import traceback
         traceback.print_exc()
         
-        flash(f'오류가 발생했습니다: {str(e)}' if session.get('language') == 'ko' else f'Error occurred: {str(e)}', 'danger')
+        flash('오류가 발생했습니다.' if session.get('language') == 'ko' else 'An error occurred.', 'danger')
         return redirect(url_for('template_analysis'))
 
 ####################
@@ -2371,4 +2444,8 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+    debug = os.environ.get('FLASK_DEBUG', '').strip().lower() in {'1', 'true', 'yes', 'on'}
+    host = os.environ.get('FLASK_RUN_HOST', '127.0.0.1')
+    port = int(os.environ.get('FLASK_RUN_PORT', '5000'))
+    app.run(debug=debug, host=host, port=port)

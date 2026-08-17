@@ -15,6 +15,7 @@
                 </h2>
                 
                 <form method="POST" action="{{ url_for('register') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="name" class="form-label">
                             {{ '이름' if current_language == 'ko' else 'Name' }}

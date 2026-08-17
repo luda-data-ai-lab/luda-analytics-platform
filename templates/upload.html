@@ -15,6 +15,7 @@
                 </h2>
                 
                 <form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data" id="uploadForm">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-4">
                         <label for="name" class="form-label fw-bold">
                             {{ '데이터셋 이름 *' if current_language == 'ko' else 'Dataset Name *' }}

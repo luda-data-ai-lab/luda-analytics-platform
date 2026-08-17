@@ -151,6 +151,7 @@
                 </div>
                 <div class="card-body">
                     <form id="uploadForm" action="{{ url_for('template_analyze') }}" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-file-earmark-excel text-success"></i>

@@ -113,6 +113,7 @@
                                 </a>
                                 {% if dataset.user_id == current_user.id %}
                                 <form action="{{ url_for('delete_dataset', dataset_id=dataset.id) }}" method="POST" onsubmit="return confirm('{% if current_language == 'ko' %}정말 삭제하시겠습니까?{% else %}Are you sure you want to delete?{% endif %}')">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <button type="submit" class="btn btn-sm btn-outline-danger w-100">
                                         <i class="bi bi-trash"></i>
                                         {% if current_language == 'ko' %}삭제{% else %}Delete{% endif %}

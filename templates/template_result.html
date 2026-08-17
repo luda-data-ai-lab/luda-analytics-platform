@@ -95,7 +95,7 @@
                 <div class="card-footer bg-light border-0 insight-box" data-chart="{{ key }}">
                     <small class="text-secondary">
                         <i class="bi bi-lightbulb-fill text-warning me-1"></i>
-                        {{ insights[key] | safe }}
+                        {{ insights[key] | insight_html }}
                     </small>
                 </div>
                 {% else %}
