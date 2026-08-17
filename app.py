@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, session
+from flask import Flask, render_template, request, redirect, url_for, jsonify, send_from_directory, session
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.utils import secure_filename
 from config import Config
@@ -7,8 +7,22 @@ import json
 import os
 from datetime import datetime
 import plotly.express as px
-import plotly.graph_objs as go
+import plotly.graph_objects as go
 from models import db, User, Dataset, DataRecord, DataView, OCRSession
+from src.analysis_utils import (
+    correlation, gain_pct, group_agg, group_ratio, ratio_pct, top_share
+)
+from src.chart_utils import (
+    QUALITATIVE_COLORS, add_month_column, base_layout, distribution_by_group,
+    group_sum, grouped_bar, horizontal_bar, line_trend, pie_chart, resolve_column,
+    resolve_columns, scatter_by_group, simple_bar, to_numeric_column,
+    try_parse_date_column, value_counts_frame
+)
+from src.dataset_utils import (
+    access_denied, create_dataset_from_dataframe, dataframe_rows, fix_dataset_meta,
+    is_owner, load_dataset_dataframe, read_dataframe, save_upload, upload_folder
+)
+from src.i18n import flash_msg, get_message, msg
 
 
 
@@ -43,10 +57,6 @@ def set_language(language):
 def inject_language():
     return dict(current_language=session.get('language', 'ko'))
 
-# 다국어 메시지 함수
-def get_message(ko_msg, en_msg):
-    return ko_msg if session.get('language') == 'ko' else en_msg
-
 # 파일 확장자 확인
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
@@ -71,7 +81,7 @@ def register():
         company = request.form.get('company', '')  # 회사명 추가 (선택사항)
         
         if User.query.filter_by(email=email).first():
-            flash(get_message('이미 등록된 이메일입니다.', 'Email already registered.'), 'danger')
+            flash_msg('email_taken', 'danger')
             return redirect(url_for('register'))
         
         user = User(email=email, name=name, company=company)
@@ -80,7 +90,7 @@ def register():
         db.session.add(user)
         db.session.commit()
         
-        flash(get_message('회원가입이 완료되었습니다!', 'Registration successful!'), 'success')
+        flash_msg('registered', 'success')
         return redirect(url_for('login'))
     
     return render_template('register.html')
@@ -100,11 +110,11 @@ def login():
         
         if user and user.check_password(password):
             login_user(user, remember=remember)
-            flash(get_message('로그인 되었습니다.', 'Successfully logged in.'), 'success')
+            flash_msg('logged_in', 'success')
             next_page = request.args.get('next')
             return redirect(next_page or url_for('dashboard'))
         else:
-            flash(get_message('이메일 또는 비밀번호가 올바르지 않습니다.', 'Invalid email or password.'), 'danger')
+            flash_msg('invalid_credentials', 'danger')
     
     return render_template('login.html')
 
@@ -113,7 +123,7 @@ def login():
 @login_required
 def logout():
     logout_user()
-    flash(get_message('로그아웃 되었습니다.', 'Successfully logged out.'), 'success')
+    flash_msg('logged_out', 'success')
     return redirect(url_for('index'))
 
 # 대시보드
@@ -143,80 +153,44 @@ def dashboard():
 def upload():
     if request.method == 'POST':
         if 'file' not in request.files:
-            flash(get_message('파일이 선택되지 않았습니다.', 'No file selected.'), 'danger')
+            flash_msg('no_file_selected', 'danger')
             return redirect(request.url)
-        
+
         file = request.files['file']
         name = request.form.get('name')
         description = request.form.get('description', '')
-        
+
         if file.filename == '':
-            flash(get_message('파일이 선택되지 않았습니다.', 'No file selected.'), 'danger')
+            flash_msg('no_file_selected', 'danger')
             return redirect(request.url)
-        
+
         if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{current_user.id}_{timestamp}_{filename}"
-            filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-            
-            file.save(filepath)
-            
+            _, filepath, _ = save_upload(file, [current_user.id])
+
             try:
-                # 파일 읽기
-                if filename.endswith('.csv'):
-                    df = pd.read_csv(filepath)
-                else:
-                    df = pd.read_excel(filepath)
-                
-                # 데이터셋 생성
-                dataset = Dataset(
+                df = read_dataframe(filepath)
+                dataset = create_dataset_from_dataframe(
+                    df,
                     name=name,
                     description=description,
                     filename=file.filename,
-                    file_path=filepath,
-                    user_id=current_user.id,
-                    row_count=len(df),
-                    column_count=len(df.columns),
-                    columns=df.columns.tolist()
+                    file_path=filepath
                 )
-                db.session.add(dataset)
-                db.session.flush()
-                
-                # 데이터 레코드 저장
-                for _, row in df.iterrows():
-                    record = DataRecord(
-                        dataset_id=dataset.id,
-                        data=row.to_dict()
-                    )
-                    db.session.add(record)
-                
                 db.session.commit()
-                flash(get_message('데이터가 성공적으로 업로드되었습니다!', 'Data uploaded successfully!'), 'success')
+                flash_msg('data_uploaded', 'success')
                 return redirect(url_for('view_dataset', dataset_id=dataset.id))
-            
+
             except Exception as e:
                 db.session.rollback()
-                flash(get_message(f'파일 처리 중 오류가 발생했습니다: {str(e)}', f'Error processing file: {str(e)}'), 'danger')
+                flash_msg('file_process_error', 'danger', error=str(e))
                 if os.path.exists(filepath):
                     os.remove(filepath)
                 return redirect(url_for('upload'))
         else:
-            flash(get_message('허용되지 않는 파일 형식입니다.', 'Invalid file format.'), 'danger')
-    
+            flash_msg('invalid_file_format', 'danger')
+
     return render_template('upload.html')
 
-def _fix_dataset_meta(dataset):
-    """columns/row_count가 None인 경우 DataRecord에서 복구"""
-    if dataset.columns is None:
-        first = DataRecord.query.filter_by(dataset_id=dataset.id).first()
-        if first:
-            cols = list(first.data.keys())
-            count = DataRecord.query.filter_by(dataset_id=dataset.id).count()
-            dataset.columns = cols
-            dataset.row_count = count
-            dataset.column_count = len(cols)
-            db.session.commit()
 
 # 데이터셋 보기
 @app.route('/dataset/<int:dataset_id>')
@@ -224,11 +198,10 @@ def _fix_dataset_meta(dataset):
 def view_dataset(dataset_id):
     dataset = Dataset.query.get_or_404(dataset_id)
 
-    if dataset.user_id != current_user.id:
-        flash(get_message('접근 권한이 없습니다.', 'Access denied.'), 'danger')
-        return redirect(url_for('dashboard'))
+    if not is_owner(dataset):
+        return access_denied('dashboard')
 
-    _fix_dataset_meta(dataset)
+    fix_dataset_meta(dataset)
     records = DataRecord.query.filter_by(dataset_id=dataset_id).limit(100).all()
     data = [record.data for record in records]
 
@@ -240,13 +213,48 @@ def view_dataset(dataset_id):
 def visualize(dataset_id):
     dataset = Dataset.query.get_or_404(dataset_id)
 
-    if dataset.user_id != current_user.id:
-        flash(get_message('접근 권한이 없습니다.', 'Access denied.'), 'danger')
-        return redirect(url_for('dashboard'))
+    if not is_owner(dataset):
+        return access_denied('dashboard')
 
-    _fix_dataset_meta(dataset)
+    fix_dataset_meta(dataset)
     columns = dataset.columns if dataset.columns is not None else []
     return render_template('visualize.html', dataset=dataset, columns=columns)
+
+def _apply_axis_titles(fig, x_column, y_column, is_x_date, is_y_date):
+    """축 제목 설정 (날짜 축이면 type='date') — 라인/바/산점도 공통"""
+    y_kwargs = dict(title_text=y_column, autorange=True)
+    if is_y_date:
+        y_kwargs['type'] = 'date'
+    fig.update_yaxes(**y_kwargs)
+
+    x_kwargs = dict(title_text=x_column)
+    if is_x_date:
+        x_kwargs['type'] = 'date'
+    fig.update_xaxes(**x_kwargs)
+
+
+def _plain_trace_values(trace, key, series=None):
+    """trace 값을 순수 JSON 리스트로 변환 (Plotly 바이너리 인코딩 방지)
+
+    날짜 컬럼은 타임스탬프 대신 ISO 문자열로 직렬화한다.
+    """
+    value = trace[key]
+    if value is None:
+        return
+
+    is_binary_encoded = isinstance(value, dict) and 'dtype' in value
+    if not is_binary_encoded and not hasattr(value, 'tolist'):
+        if not isinstance(value, list):
+            trace[key] = list(value)
+        return
+
+    if series is not None and series.dtype == 'datetime64[ns]':
+        trace[key] = series.dt.strftime('%Y-%m-%d').tolist()
+    elif is_binary_encoded:
+        trace[key] = series.tolist()
+    else:
+        trace[key] = value.tolist()
+
 
 # 차트 생성 API
 @app.route('/api/generate_chart', methods=['POST'])
@@ -267,25 +275,25 @@ def generate_chart():
         
         dataset = Dataset.query.get_or_404(dataset_id)
         
-        if dataset.user_id != current_user.id:
-            return jsonify({'error': get_message('접근 권한이 없습니다.', 'Access denied.')}), 403
+        if not is_owner(dataset):
+            return jsonify({'error': msg('access_denied')}), 403
         
         # 데이터 레코드 가져오기
         records = DataRecord.query.filter_by(dataset_id=dataset_id).all()
         if not records:
-            return jsonify({'error': get_message('데이터가 없습니다.', 'No data available.')}), 400
+            return jsonify({'error': msg('no_data')}), 400
         
         print(f"총 레코드 수 / Total records: {len(records)}")
         
-        df = pd.DataFrame([record.data for record in records])
+        df = load_dataset_dataframe(dataset_id)
         print(f"DataFrame shape: {df.shape}")
         print(f"Columns: {df.columns.tolist()}")
         
         # 컬럼 존재 확인
         if x_column not in df.columns:
-            return jsonify({'error': get_message(f'컬럼을 찾을 수 없습니다: {x_column}', f'Column not found: {x_column}')}), 400
+            return jsonify({'error': msg('column_not_found', value=x_column)}), 400
         if y_column and y_column not in df.columns:
-            return jsonify({'error': get_message(f'컬럼을 찾을 수 없습니다: {y_column}', f'Column not found: {y_column}')}), 400
+            return jsonify({'error': msg('column_not_found', value=y_column)}), 400
         
         # 데이터 샘플 출력
         print(f"\n원본 데이터 샘플 (처음 3행):")
@@ -301,83 +309,47 @@ def generate_chart():
         # 데이터 타입 변환 (날짜와 숫자 모두 지원)
         is_y_date = False  # Y축이 날짜인지 여부
         is_x_date = False  # X축이 날짜인지 여부
-        
+
         try:
             if chart_type in ['line', 'bar', 'scatter', 'histogram']:
                 # Y축 데이터 처리 (날짜 우선, 그 다음 숫자)
                 if y_column and y_column in df.columns:
-                    # 원본 데이터 타입 확인
-                    original_dtype = df[y_column].dtype
-                    print(f"Y축 원본 타입: {original_dtype}")
-                    
-                    # 1. 날짜로 변환 시도 (숫자 타입이 아닌 경우만)
-                    if original_dtype == 'object':  # 문자열 타입일 때만 날짜 변환 시도
-                        try:
-                            # 샘플 데이터로 날짜 형식 검증
-                            sample_val = str(df[y_column].iloc[0])
-                            # 날짜 형식 패턴 체크 (YYYY-MM-DD, YYYY/MM/DD 등)
-                            if any(sep in sample_val for sep in ['-', '/', '.']):
-                                temp_y = pd.to_datetime(df[y_column], errors='coerce')
-                                # 80% 이상 성공적으로 변환되면 날짜로 인식
-                                if temp_y.notna().sum() / len(temp_y) > 0.8:
-                                    df[y_column] = temp_y
-                                    is_y_date = True
-                                    print(f"✅ Y축을 날짜로 변환함")
-                                    print(f"Y 컬럼 변환 후 dtype: {df[y_column].dtype}")
-                                    print(f"Y 컬럼 변환 후 샘플: {df[y_column].head(3).tolist()}")
-                                else:
-                                    raise ValueError("Not enough valid dates")
-                            else:
-                                raise ValueError("No date separator found")
-                        except:
-                            # 날짜 변환 실패 -> 숫자 변환 시도
-                            df[y_column] = df[y_column].astype(str).str.replace(',', '').str.replace(' ', '')
-                            df[y_column] = pd.to_numeric(df[y_column], errors='coerce')
-                            print(f"Y 컬럼을 숫자로 변환함")
-                            print(f"Y 컬럼 변환 후 dtype: {df[y_column].dtype}")
-                            print(f"Y 컬럼 변환 후 샘플: {df[y_column].head(3).tolist()}")
-                    else:
-                        # 이미 숫자 타입이면 그대로 사용 또는 숫자 변환
-                        df[y_column] = df[y_column].astype(str).str.replace(',', '').str.replace(' ', '')
-                        df[y_column] = pd.to_numeric(df[y_column], errors='coerce')
-                        print(f"Y 컬럼을 숫자로 변환함 (원본이 숫자 타입)")
-                        print(f"Y 컬럼 변환 후 dtype: {df[y_column].dtype}")
-                        print(f"Y 컬럼 변환 후 샘플: {df[y_column].head(3).tolist()}")
-                
+                    print(f"Y축 원본 타입: {df[y_column].dtype}")
+                    try:
+                        is_y_date = try_parse_date_column(df, y_column)
+                        if not is_y_date:
+                            raise ValueError("Not a date column")
+                        print(f"✅ Y축을 날짜로 변환함")
+                    except Exception:
+                        # 날짜 변환 실패 -> 숫자 변환 시도
+                        to_numeric_column(df, y_column)
+                        print(f"Y 컬럼을 숫자로 변환함")
+                    print(f"Y 컬럼 변환 후 dtype: {df[y_column].dtype}")
+                    print(f"Y 컬럼 변환 후 샘플: {df[y_column].head(3).tolist()}")
+
                 # X축 처리
                 if chart_type == 'histogram':
                     # 히스토그램은 X축도 숫자여야 함
-                    df[x_column] = df[x_column].astype(str).str.replace(',', '').str.replace(' ', '')
-                    df[x_column] = pd.to_numeric(df[x_column], errors='coerce')
+                    to_numeric_column(df, x_column)
                 else:
                     # 라인/바/산점도의 경우 X축을 날짜로 변환 시도
-                    original_x_dtype = df[x_column].dtype
-                    if original_x_dtype == 'object':  # 문자열 타입일 때만
-                        try:
-                            sample_x_val = str(df[x_column].iloc[0])
-                            # 날짜 형식 패턴 체크
-                            if any(sep in sample_x_val for sep in ['-', '/', '.']):
-                                temp_x = pd.to_datetime(df[x_column], errors='coerce')
-                                # 80% 이상 성공적으로 변환되면 날짜로 인식
-                                if temp_x.notna().sum() / len(temp_x) > 0.8:
-                                    df[x_column] = temp_x
-                                    is_x_date = True
-                                    print(f"✅ X축을 날짜로 변환함")
-                        except:
-                            pass
-            
+                    try:
+                        is_x_date = try_parse_date_column(df, x_column)
+                        if is_x_date:
+                            print(f"✅ X축을 날짜로 변환함")
+                    except Exception:
+                        pass
+
             elif chart_type == 'pie':
                 # 파이 차트는 values를 숫자로 변환, names는 문자열로 유지
                 if y_column:
-                    # Y축(values)을 숫자로 변환
-                    df[y_column] = df[y_column].astype(str).str.replace(',', '').str.replace(' ', '')
-                    df[y_column] = pd.to_numeric(df[y_column], errors='coerce')
+                    to_numeric_column(df, y_column)
                     print(f"파이 차트 Y 변환 후: {df[y_column].dtype}")
                 # X축(names)은 문자열로 유지 (카테고리)
                 df[x_column] = df[x_column].astype(str)
                 print(f"파이 차트 X를 문자열로 유지: {df[x_column].dtype}")
                 print(f"X 값 샘플: {df[x_column].head(3).tolist()}")
-        
+
         except Exception as conv_error:
             print(f"⚠️  데이터 변환 경고 / Data conversion warning: {conv_error}")
         
@@ -394,7 +366,7 @@ def generate_chart():
         
         # 데이터가 충분한지 확인
         if len(df) == 0:
-            return jsonify({'error': get_message('유효한 데이터가 없습니다. 숫자 데이터를 포함한 컬럼을 선택하세요.', 'No valid data. Please select columns with numeric data.')}), 400
+            return jsonify({'error': msg('no_valid_data')}), 400
         
         print(f"최종 데이터 행 수 / Final data rows: {len(df)}")
         
@@ -432,46 +404,19 @@ def generate_chart():
                 fig = px.line(plot_df, x=x_column, y=y_column, 
                             title=get_message(f'{y_column} vs {x_column}', f'{y_column} vs {x_column}'),
                             markers=True)
-                # Y축 설정 - 날짜 타입 고려
-                if is_y_date:
-                    fig.update_yaxes(title_text=y_column, type='date', autorange=True)
-                else:
-                    fig.update_yaxes(title_text=y_column, autorange=True)
-                # X축 설정
-                if is_x_date:
-                    fig.update_xaxes(title_text=x_column, type='date')
-                else:
-                    fig.update_xaxes(title_text=x_column)
+                _apply_axis_titles(fig, x_column, y_column, is_x_date, is_y_date)
             
             elif chart_type == 'bar':
                 print(f"\n바 차트 생성 중...")
                 fig = px.bar(plot_df, x=x_column, y=y_column, 
                            title=get_message(f'{x_column}별 {y_column}', f'{y_column} by {x_column}'))
-                # Y축 설정 - 날짜 타입 고려
-                if is_y_date:
-                    fig.update_yaxes(title_text=y_column, type='date', autorange=True)
-                else:
-                    fig.update_yaxes(title_text=y_column, autorange=True)
-                # X축 설정
-                if is_x_date:
-                    fig.update_xaxes(title_text=x_column, type='date')
-                else:
-                    fig.update_xaxes(title_text=x_column)
+                _apply_axis_titles(fig, x_column, y_column, is_x_date, is_y_date)
             
             elif chart_type == 'scatter':
                 print(f"\n산점도 생성 중...")
                 fig = px.scatter(plot_df, x=x_column, y=y_column, 
                                title=get_message(f'{y_column} vs {x_column}', f'{y_column} vs {x_column}'))
-                # Y축 설정 - 날짜 타입 고려
-                if is_y_date:
-                    fig.update_yaxes(title_text=y_column, type='date', autorange=True)
-                else:
-                    fig.update_yaxes(title_text=y_column, autorange=True)
-                # X축 설정
-                if is_x_date:
-                    fig.update_xaxes(title_text=x_column, type='date')
-                else:
-                    fig.update_xaxes(title_text=x_column)
+                _apply_axis_titles(fig, x_column, y_column, is_x_date, is_y_date)
             
             elif chart_type == 'pie':
                 print(f"\n파이 차트 생성 중...")
@@ -485,8 +430,7 @@ def generate_chart():
                                title=get_message(f'{y_column} 분포', f'{y_column} Distribution'))
                 else:
                     # Y축이 없는 경우: 카테고리별 빈도수 계산
-                    pie_data = plot_df[x_column].value_counts().reset_index()
-                    pie_data.columns = [x_column, 'count']
+                    pie_data = value_counts_frame(plot_df, x_column)
                     print(f"파이 차트 데이터 (빈도수): {len(pie_data)} 카테고리")
                     print(f"파이 데이터:\n{pie_data}")
                     fig = px.pie(pie_data, names=x_column, values='count', 
@@ -502,7 +446,7 @@ def generate_chart():
                 fig.update_yaxes(title_text=get_message('빈도', 'Frequency'))
             
             else:
-                return jsonify({'error': get_message('지원하지 않는 차트 유형입니다.', 'Unsupported chart type.')}), 400
+                return jsonify({'error': msg('unsupported_chart')}), 400
             
             # 차트 레이아웃 개선
             fig.update_layout(
@@ -533,76 +477,17 @@ def generate_chart():
             fig_dict = fig.to_dict()
             
             # 모든 trace의 x, y, labels, values 데이터를 Python list로 강제 변환
+            y_series = df[y_column] if y_column else None
             for trace in fig_dict.get('data', []):
-                # X축 데이터 처리
                 if 'x' in trace:
-                    x_data = trace['x']
-                    # dict 형태의 바이너리 인코딩 체크
-                    if isinstance(x_data, dict) and 'dtype' in x_data:
-                        # 이미 바이너리로 인코딩된 경우 - 원본에서 가져오기
-                        if df[x_column].dtype == 'datetime64[ns]':
-                            # 날짜는 문자열로 변환 (타임스탬프가 아닌 ISO 형식)
-                            trace['x'] = df[x_column].dt.strftime('%Y-%m-%d').tolist()
-                            print(f"✅ X축 날짜를 문자열로 변환")
-                        else:
-                            trace['x'] = df[x_column].tolist()
-                    elif hasattr(x_data, 'tolist'):
-                        # numpy array나 pandas Series
-                        # datetime인 경우 문자열로 변환
-                        if df[x_column].dtype == 'datetime64[ns]':
-                            trace['x'] = df[x_column].dt.strftime('%Y-%m-%d').tolist()
-                            print(f"✅ X축 날짜를 문자열로 변환")
-                        else:
-                            trace['x'] = x_data.tolist()
-                    elif not isinstance(x_data, list):
-                        # 기타 iterable
-                        trace['x'] = list(x_data)
-                
-                # Y축 데이터 처리
+                    _plain_trace_values(trace, 'x', df[x_column])
                 if 'y' in trace:
-                    y_data = trace['y']
-                    # dict 형태의 바이너리 인코딩 체크
-                    if isinstance(y_data, dict) and 'dtype' in y_data:
-                        # 이미 바이너리로 인코딩된 경우 - 원본에서 가져오기
-                        if df[y_column].dtype == 'datetime64[ns]':
-                            # 날짜는 문자열로 변환 (타임스탬프가 아닌 ISO 형식)
-                            trace['y'] = df[y_column].dt.strftime('%Y-%m-%d').tolist()
-                            print(f"✅ Y축 날짜를 문자열로 변환")
-                        else:
-                            trace['y'] = df[y_column].tolist()
-                        print(f"⚠️ Y축 바이너리 인코딩 감지 → 리스트로 변환")
-                        print(f"변환된 Y 데이터 (처음 5개): {trace['y'][:5]}")
-                    elif hasattr(y_data, 'tolist'):
-                        # numpy array나 pandas Series
-                        # datetime인 경우 문자열로 변환
-                        if df[y_column].dtype == 'datetime64[ns]':
-                            trace['y'] = df[y_column].dt.strftime('%Y-%m-%d').tolist()
-                            print(f"✅ Y축 날짜를 문자열로 변환")
-                        else:
-                            trace['y'] = y_data.tolist()
-                    elif not isinstance(y_data, list):
-                        # 기타 iterable
-                        trace['y'] = list(y_data)
-                
-                # 파이 차트용 labels 처리
+                    _plain_trace_values(trace, 'y', y_series)
                 if 'labels' in trace:
-                    labels_data = trace['labels']
-                    if hasattr(labels_data, 'tolist'):
-                        trace['labels'] = labels_data.tolist()
-                        print(f"✅ 파이 차트 labels를 리스트로 변환")
-                    elif not isinstance(labels_data, list):
-                        trace['labels'] = list(labels_data)
-                
-                # 파이 차트용 values 처리
+                    _plain_trace_values(trace, 'labels')
                 if 'values' in trace:
-                    values_data = trace['values']
-                    if hasattr(values_data, 'tolist'):
-                        trace['values'] = values_data.tolist()
-                        print(f"✅ 파이 차트 values를 리스트로 변환")
-                    elif not isinstance(values_data, list):
-                        trace['values'] = list(values_data)
+                    _plain_trace_values(trace, 'values')
 
-            
             # 일반 json.dumps 사용 (PlotlyJSONEncoder 없이)
             graphJSON = json.dumps(fig_dict)
             
@@ -637,14 +522,14 @@ def generate_chart():
             print(f"❌ 차트 생성 오류 / Chart creation error: {error_msg}")
             import traceback
             traceback.print_exc()
-            return jsonify({'error': get_message(f'차트 생성 실패: {error_msg}', f'Chart creation failed: {error_msg}')}), 400
+            return jsonify({'error': msg('chart_failed', error=error_msg)}), 400
     
     except Exception as e:
         error_msg = str(e)
         print(f"❌ 전체 오류 / General error: {error_msg}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': get_message(f'오류 발생: {error_msg}', f'Error occurred: {error_msg}')}), 400
+        return jsonify({'error': msg('error_occurred', error=error_msg)}), 400
 
 # 템플릿 기반 시각화 - 메인 페이지
 @app.route('/template')
@@ -742,62 +627,40 @@ def download_sample_template():
 @login_required
 def upload_template():
     if 'file' not in request.files:
-        flash(get_message('파일이 선택되지 않았습니다.', 'No file selected.'), 'danger')
+        flash_msg('no_file_selected', 'danger')
         return redirect(url_for('template_dashboard'))
     
     file = request.files['file']
     
     if file.filename == '':
-        flash(get_message('파일이 선택되지 않았습니다.', 'No file selected.'), 'danger')
+        flash_msg('no_file_selected', 'danger')
         return redirect(url_for('template_dashboard'))
     
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"{current_user.id}_template_{timestamp}_{filename}"
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        
-        file.save(filepath)
-        
+        _, filepath, timestamp = save_upload(file, [current_user.id, 'template'])
+
         try:
-            # 파일 읽기
-            df = pd.read_excel(filepath)
-            
-            # 데이터셋 생성 (템플릿 플래그 추가)
-            dataset = Dataset(
+            df = read_dataframe(filepath)
+            dataset = create_dataset_from_dataframe(
+                df,
                 name=f"Template Analysis {timestamp}",
                 description="Template-based automated analysis",
                 filename=file.filename,
                 file_path=filepath,
-                user_id=current_user.id,
-                row_count=len(df),
-                column_count=len(df.columns),
-                columns=df.columns.tolist(),
-                is_template=True  # 템플릿 플래그
+                is_template=True
             )
-            db.session.add(dataset)
-            db.session.flush()
-            
-            # 데이터 레코드 저장
-            for _, row in df.iterrows():
-                record = DataRecord(
-                    dataset_id=dataset.id,
-                    data=row.to_dict()
-                )
-                db.session.add(record)
-            
             db.session.commit()
-            flash(get_message('템플릿이 성공적으로 업로드되었습니다!', 'Template uploaded successfully!'), 'success')
+            flash_msg('template_uploaded', 'success')
             return redirect(url_for('view_template_analysis', dataset_id=dataset.id))
-        
+
         except Exception as e:
             db.session.rollback()
-            flash(get_message(f'파일 처리 중 오류가 발생했습니다: {str(e)}', f'Error processing file: {str(e)}'), 'danger')
+            flash_msg('file_process_error', 'danger', error=str(e))
             if os.path.exists(filepath):
                 os.remove(filepath)
             return redirect(url_for('template_dashboard'))
     else:
-        flash(get_message('허용되지 않는 파일 형식입니다.', 'Invalid file format.'), 'danger')
+        flash_msg('invalid_file_format', 'danger')
         return redirect(url_for('template_dashboard'))
 
 # 템플릿 기반 자동 분석 뷰
@@ -806,13 +669,10 @@ def upload_template():
 def view_template_analysis(dataset_id):
     dataset = Dataset.query.get_or_404(dataset_id)
     
-    if dataset.user_id != current_user.id:
-        flash(get_message('접근 권한이 없습니다.', 'Access denied.'), 'danger')
-        return redirect(url_for('template_dashboard'))
+    if not is_owner(dataset):
+        return access_denied('template_dashboard')
     
-    # 데이터 로드
-    records = DataRecord.query.filter_by(dataset_id=dataset_id).all()
-    df = pd.DataFrame([record.data for record in records])
+    df = load_dataset_dataframe(dataset_id)
     
     # 자동으로 차트 생성
     charts   = generate_template_charts(df)
@@ -826,104 +686,6 @@ def view_template_analysis(dataset_id):
                          insights=insights,
                          data=df.head(100).to_dict('records'),
                          columns=df.columns.tolist())
-
-# 영문/한글 컬럼명 통일 매핑 (4개 템플릿 전체 포함)
-COLUMN_MAP = {
-    # 판매 데이터
-    '날짜':      ['날짜', 'Date', 'date', 'DATE', 'Start_Date'],
-    '매출액':    ['매출액', 'Revenue', 'revenue', 'Total_Sales', 'Sales'],
-    '지역':      ['지역', 'Region', 'region'],
-    '제품':      ['제품', 'Product', 'product'],
-    '카테고리':  ['카테고리', 'Category', 'category'],
-    '판매량':    ['판매량', 'Quantity', 'quantity', 'Units_Sold'],
-    '비용':      ['비용', 'Cost', 'cost', 'Budget'],
-    # 곡물 데이터
-    '작물':      ['Crop_Type', 'Crop', 'crop_type'],
-    '수확량':    ['Crop_Yield_kg', 'Yield', 'crop_yield'],
-    '강수량':    ['Rainfall_mm', 'Rainfall', 'rainfall'],
-    '온도':      ['Temperature_C', 'Temperature', 'temperature'],
-    '비료':      ['Fertilizer_kg', 'Fertilizer', 'fertilizer'],
-    '토양':      ['Soil_Type', 'Soil', 'soil_type'],
-    '기후':      ['Climate', 'climate'],
-    '관개':      ['Irrigation_hours', 'Irrigation', 'irrigation'],
-    # 마케팅 데이터
-    '채널':      ['Channel', 'channel', 'Media'],
-    '노출':      ['Impressions', 'impressions'],
-    '클릭':      ['Clicks', 'clicks'],
-    '전환':      ['Conversions', 'conversions'],
-    '예산':      ['Budget', 'budget'],
-    '캠페인':    ['Campaign_Name', 'Campaign', 'campaign_name'],
-    # 고객 데이터
-    '세그먼트':  ['Segment', 'segment', 'Customer_Segment'],
-    '나이':      ['Age', 'age'],
-    '성별':      ['Gender', 'gender'],
-    '소득':      ['Income', 'income'],
-    '구매횟수':  ['Total_Purchases', 'total_purchases', 'Purchase_Count'],
-    '구매금액':  ['Avg_Purchase_Value', 'avg_purchase_value', 'Avg_Order_Value'],
-}
-
-def resolve_column(df, key):
-    for candidate in COLUMN_MAP.get(key, [key]):
-        if candidate in df.columns:
-            return candidate
-    return None
-
-
-def _go_scatter(df, x_col, y_col, color_col=None, size_col=None,
-                size_max=15, title='', layout=None, x_label=None, y_label=None):
-    """px.scatter color=categorical 버그 우회 — go.Scatter로 그룹별 트레이스 생성"""
-    import plotly.graph_objects as go
-    _colors = px.colors.qualitative.Plotly
-    fig = go.Figure()
-    groups = sorted(df[color_col].dropna().unique()) if color_col else [None]
-    for i, grp in enumerate(groups):
-        sub = df[df[color_col] == grp] if grp is not None else df
-        x = sub[x_col].tolist()
-        y = sub[y_col].tolist()
-        if size_col:
-            raw = sub[size_col].fillna(0).tolist()
-            mx = max(raw) if max(raw) > 0 else 1
-            szs = [max(4, int(v / mx * size_max)) for v in raw]
-        else:
-            szs = 9
-        fig.add_trace(go.Scatter(
-            x=x, y=y, mode='markers',
-            name=str(grp) if grp is not None else '',
-            marker=dict(color=_colors[i % len(_colors)], size=szs, opacity=0.75)
-        ))
-    kw = dict(title=title)
-    if x_label: kw['xaxis_title'] = x_label
-    if y_label: kw['yaxis_title'] = y_label
-    if layout:  kw.update(layout)
-    fig.update_layout(**kw)
-    return fig
-
-
-def _go_bar_categorical(df, x_col, y_col, color_col, title='', layout=None, orientation='v'):
-    """px.bar color=categorical 버그 우회 — go.Bar로 그룹별 트레이스 생성"""
-    import plotly.graph_objects as go
-    _colors = px.colors.qualitative.Plotly
-    fig = go.Figure()
-    if orientation == 'h':
-        data = df.sort_values(y_col)
-        fig.add_trace(go.Bar(
-            x=data[y_col].tolist(), y=data[x_col].tolist(),
-            orientation='h',
-            marker=dict(color=_colors[:len(data)]),
-            showlegend=False
-        ))
-    else:
-        for i, grp in enumerate(sorted(df[color_col].dropna().unique())):
-            sub = df[df[color_col] == grp]
-            fig.add_trace(go.Bar(
-                x=sub[x_col].tolist(), y=sub[y_col].tolist(),
-                name=str(grp),
-                marker_color=_colors[i % len(_colors)]
-            ))
-    kw = dict(title=title)
-    if layout: kw.update(layout)
-    fig.update_layout(**kw)
-    return fig
 
 def _detect_template_type(df):
     cols = set(df.columns)
@@ -940,15 +702,7 @@ def _detect_template_type(df):
 # 템플릿 차트 자동 생성 함수
 def generate_template_charts(df):
     charts = {}
-    common_layout = dict(
-        height=380,
-        margin=dict(l=60, r=40, t=60, b=60),
-        font=dict(size=12, family="Arial, sans-serif"),
-        title_font=dict(size=16, family="Arial, sans-serif"),
-        hovermode='closest',
-        plot_bgcolor='rgba(0,0,0,0)',
-        paper_bgcolor='rgba(0,0,0,0)'
-    )
+    common_layout = base_layout()
 
     try:
         ttype = _detect_template_type(df)
@@ -974,62 +728,44 @@ def generate_template_charts(df):
 
 
 def _charts_sales(df, charts, layout):
-    col_date     = resolve_column(df, '날짜')
-    col_revenue  = resolve_column(df, '매출액')
-    col_region   = resolve_column(df, '지역')
-    col_product  = resolve_column(df, '제품')
-    col_category = resolve_column(df, '카테고리')
-    col_quantity = resolve_column(df, '판매량')
-    col_cost     = resolve_column(df, '비용')
+    col_date, col_revenue, col_region, col_product, col_category, col_quantity, col_cost = resolve_columns(
+        df, '날짜', '매출액', '지역', '제품', '카테고리', '판매량', '비용'
+    )
 
-    if col_date:
-        df[col_date] = pd.to_datetime(df[col_date], errors='coerce')
+    month_col = add_month_column(df, col_date) if col_date else None
 
     # 1. 월별 매출 vs 비용 비교 (그룹 바 or 라인)
     if col_date and col_revenue:
-        df['_month'] = df[col_date].dt.to_period('M').astype(str)
         if col_cost:
-            import plotly.graph_objects as go
-            monthly = df.groupby('_month')[[col_revenue, col_cost]].sum().reset_index()
-            fig = go.Figure([
-                go.Bar(x=monthly['_month'].tolist(), y=monthly[col_revenue].tolist(),
-                       name='매출', marker_color='#0d6efd'),
-                go.Bar(x=monthly['_month'].tolist(), y=monthly[col_cost].tolist(),
-                       name='비용', marker_color='#dc3545')
-            ])
-            fig.update_layout(barmode='group', title='월별 매출 vs 비용', xaxis_title='월')
+            monthly = group_sum(df, month_col, [col_revenue, col_cost])
+            fig = grouped_bar(monthly[month_col], [
+                ('매출', monthly[col_revenue], '#0d6efd'),
+                ('비용', monthly[col_cost], '#dc3545'),
+            ], title='월별 매출 vs 비용', x_title='월', layout=layout)
         else:
-            monthly = df.groupby('_month')[col_revenue].sum().reset_index()
-            fig = px.line(monthly, x='_month', y=col_revenue,
-                          title='월별 매출 추이', markers=True)
-            fig.update_traces(line=dict(width=3, color='#0d6efd'), marker=dict(size=9))
-        fig.update_layout(**layout)
+            monthly = group_sum(df, month_col, col_revenue)
+            fig = line_trend(monthly, month_col, col_revenue, title='월별 매출 추이',
+                             color='#0d6efd', layout=layout)
         charts['daily_sales'] = fig.to_json()
 
     # 2. 지역별 매출 (수평 바, 내림차순)
     if col_region and col_revenue:
-        data = df.groupby(col_region)[col_revenue].sum().reset_index().sort_values(col_revenue)
-        fig = px.bar(data, x=col_revenue, y=col_region, orientation='h',
-                     title='지역별 매출 (내림차순)', color=col_revenue,
-                     color_continuous_scale='Blues')
-        fig.update_layout(**layout, coloraxis_showscale=False)
+        data = group_sum(df, col_region, col_revenue, sort_by=col_revenue)
+        fig = horizontal_bar(data, col_revenue, col_region, title='지역별 매출 (내림차순)',
+                             layout=layout)
         charts['region_sales'] = fig.to_json()
 
     # 3. 제품별 판매 비율 (도넛 차트)
     if col_product and col_revenue:
-        data = df.groupby(col_product)[col_revenue].sum().reset_index().sort_values(col_revenue, ascending=False)
-        fig = px.pie(data, names=col_product, values=col_revenue,
-                     title='제품별 매출 비중', hole=0.4)
-        fig.update_layout(**layout)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
+        data = group_sum(df, col_product, col_revenue, sort_by=col_revenue, ascending=False)
+        fig = pie_chart(data, col_product, col_revenue, title='제품별 매출 비중',
+                        hole=0.4, layout=layout)
         charts['product_distribution'] = fig.to_json()
 
     # 4. 카테고리별 매출 + 판매량 (이중축 바)
     if col_category and col_revenue:
-        data = df.groupby(col_category).agg(
-            **{col_revenue: (col_revenue, 'sum'),
-               **(({col_quantity: (col_quantity, 'sum')} if col_quantity else {}))}
-        ).reset_index().sort_values(col_revenue, ascending=False)
+        value_cols = [col_revenue, col_quantity] if col_quantity else [col_revenue]
+        data = group_sum(df, col_category, value_cols, sort_by=col_revenue, ascending=False)
         fig = px.bar(data, x=col_category, y=col_revenue,
                      title='카테고리별 매출', color=col_category,
                      text_auto='.2s')
@@ -1039,53 +775,36 @@ def _charts_sales(df, charts, layout):
     # 5. 판매량 vs 매출액 (제품별 색상 산점도)
     if col_quantity and col_revenue:
         color_arg = col_product if col_product else col_category
-        fig = _go_scatter(df, col_quantity, col_revenue, color_col=color_arg,
-                          title='판매량 vs 매출액',
-                          x_label='판매량', y_label='매출액', layout=layout)
+        fig = scatter_by_group(df, col_quantity, col_revenue, color_col=color_arg,
+                               title='판매량 vs 매출액',
+                               x_label='판매량', y_label='매출액', layout=layout)
         charts['quantity_revenue'] = fig.to_json()
 
     # 6. 제품별 이익률 (수평 바)
     if col_product and col_revenue and col_cost:
-        data = df.groupby(col_product)[[col_revenue, col_cost]].sum().reset_index()
-        data['이익률(%)'] = ((data[col_revenue] - data[col_cost]) / data[col_revenue] * 100).round(1)
-        data = data.sort_values('이익률(%)')
-        fig = px.bar(data, x='이익률(%)', y=col_product, orientation='h',
-                     title='제품별 이익률(%)', color='이익률(%)',
-                     color_continuous_scale='RdYlGn')
-        fig.update_layout(**layout, coloraxis_showscale=False)
+        data = group_ratio(df, col_product, col_revenue, col_cost, '이익률(%)',
+                           mode='margin')
+        fig = horizontal_bar(data, '이익률(%)', col_product, title='제품별 이익률(%)',
+                             color_scale='RdYlGn', layout=layout)
         charts['daily_quantity'] = fig.to_json()
     elif col_date and col_quantity:
-        daily = df.groupby('_month')[col_quantity].sum().reset_index() if '_month' in df.columns else df.groupby(col_date)[col_quantity].sum().reset_index()
-        x_col = '_month' if '_month' in daily.columns else col_date
-        fig = px.line(daily, x=x_col, y=col_quantity, title='월별 판매량 추이', markers=True)
-        fig.update_traces(line=dict(width=3, color='#198754'), marker=dict(size=9))
-        fig.update_layout(**layout)
+        x_col = month_col if month_col else col_date
+        daily = group_sum(df, x_col, col_quantity)
+        fig = line_trend(daily, x_col, col_quantity, title='월별 판매량 추이',
+                         color='#198754', layout=layout)
         charts['daily_quantity'] = fig.to_json()
 
 
 def _charts_crop(df, charts, layout):
-    col_crop    = resolve_column(df, '작물')
-    col_yield   = resolve_column(df, '수확량')
-    col_climate = resolve_column(df, '기후')
-    col_soil    = resolve_column(df, '토양')
-    col_rain    = resolve_column(df, '강수량')
-    col_temp    = resolve_column(df, '온도')
-    col_fert    = resolve_column(df, '비료')
-    col_irr     = resolve_column(df, '관개')
+    col_crop, col_yield, col_climate, col_soil, col_rain, col_temp, col_fert, col_irr = resolve_columns(
+        df, '작물', '수확량', '기후', '토양', '강수량', '온도', '비료', '관개'
+    )
 
-    import plotly.graph_objects as go
-    colors = px.colors.qualitative.Plotly
-
-    # 1. 작물별 수확량 분포 (go.Box — px.box color 버그 우회)
+    # 1. 작물별 수확량 분포 (박스 플롯)
     if col_crop and col_yield:
-        fig = go.Figure()
-        for i, grp in enumerate(sorted(df[col_crop].dropna().unique())):
-            subset = df[df[col_crop] == grp][col_yield].dropna()
-            fig.add_trace(go.Box(y=subset, name=str(grp),
-                                 marker_color=colors[i % len(colors)],
-                                 boxpoints='outliers'))
-        fig.update_layout(title='작물 유형별 수확량 분포',
-                          yaxis_title='수확량 (kg)', showlegend=True, **layout)
+        fig = distribution_by_group(df, col_yield, col_crop, kind='box',
+                                    title='작물 유형별 수확량 분포',
+                                    y_title='수확량 (kg)', showlegend=True, layout=layout)
         charts['daily_sales'] = fig.to_json()
 
     # 2. 기후 × 토양 조합별 평균 수확량 (히트맵)
@@ -1104,278 +823,188 @@ def _charts_crop(df, charts, layout):
         fig.update_layout(title='기후 × 토양 조합별 평균 수확량', **layout)
         charts['region_sales'] = fig.to_json()
     elif col_climate and col_yield:
-        fig = go.Figure()
-        for i, grp in enumerate(sorted(df[col_climate].dropna().unique())):
-            subset = df[df[col_climate] == grp][col_yield].dropna()
-            fig.add_trace(go.Box(y=subset, name=str(grp),
-                                 marker_color=colors[i % len(colors)],
-                                 boxpoints='outliers'))
-        fig.update_layout(title='기후별 수확량 분포',
-                          yaxis_title='수확량 (kg)', showlegend=True, **layout)
+        fig = distribution_by_group(df, col_yield, col_climate, kind='box',
+                                    title='기후별 수확량 분포',
+                                    y_title='수확량 (kg)', showlegend=True, layout=layout)
         charts['region_sales'] = fig.to_json()
 
     # 3. 작물별 데이터 구성 비율 (도넛)
     if col_crop:
-        counts = df[col_crop].value_counts().reset_index()
-        counts.columns = [col_crop, 'count']
-        fig = px.pie(counts, names=col_crop, values='count',
-                     title='작물 유형 구성 비율', hole=0.4)
-        fig.update_layout(**layout)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
+        counts = value_counts_frame(df, col_crop)
+        fig = pie_chart(counts, col_crop, 'count', title='작물 유형 구성 비율',
+                        hole=0.4, layout=layout)
         charts['product_distribution'] = fig.to_json()
 
-    # 4. 토양 유형별 수확량 분포 (go.Violin — px.violin color 버그 우회)
+    # 4. 토양 유형별 수확량 분포 (바이올린)
     if col_soil and col_yield:
-        fig = go.Figure()
-        for i, grp in enumerate(sorted(df[col_soil].dropna().unique())):
-            subset = df[df[col_soil] == grp][col_yield].dropna()
-            fig.add_trace(go.Violin(y=subset, name=str(grp),
-                                    marker_color=colors[i % len(colors)],
-                                    box_visible=True, points='outliers',
-                                    meanline_visible=True))
-        fig.update_layout(title='토양 유형별 수확량 분포',
-                          yaxis_title='수확량 (kg)', showlegend=True, **layout)
+        fig = distribution_by_group(df, col_yield, col_soil, kind='violin',
+                                    title='토양 유형별 수확량 분포',
+                                    y_title='수확량 (kg)', showlegend=True, layout=layout)
         charts['category_sales'] = fig.to_json()
 
     # 5. 강수량 vs 수확량 (작물별 색상, 비료량 = 마커 크기)
     if col_rain and col_yield:
-        fig = _go_scatter(df, col_rain, col_yield, color_col=col_crop,
-                          size_col=col_fert, size_max=18,
-                          title='강수량 vs 수확량 (마커 크기 = 비료량)',
-                          x_label='강수량 (mm)', y_label='수확량 (kg)', layout=layout)
+        fig = scatter_by_group(df, col_rain, col_yield, color_col=col_crop,
+                               size_col=col_fert, size_max=18,
+                               title='강수량 vs 수확량 (마커 크기 = 비료량)',
+                               x_label='강수량 (mm)', y_label='수확량 (kg)', layout=layout)
         charts['quantity_revenue'] = fig.to_json()
 
     # 6. 온도 vs 수확량 (작물별 색상)
     if col_temp and col_yield:
-        fig = _go_scatter(df, col_temp, col_yield, color_col=col_crop,
-                          title='기온 vs 수확량',
-                          x_label='기온 (°C)', y_label='수확량 (kg)', layout=layout)
-        fig.update_layout(**layout)
+        fig = scatter_by_group(df, col_temp, col_yield, color_col=col_crop,
+                               title='기온 vs 수확량',
+                               x_label='기온 (°C)', y_label='수확량 (kg)', layout=layout)
         fig.update_traces(marker=dict(size=9, opacity=0.7))
         charts['daily_quantity'] = fig.to_json()
 
 
 def _charts_marketing(df, charts, layout):
-    col_channel = resolve_column(df, '채널')
-    col_revenue = resolve_column(df, '매출액')
-    col_budget  = resolve_column(df, '예산')
-    col_clicks  = resolve_column(df, '클릭')
-    col_conv    = resolve_column(df, '전환')
-    col_impr    = resolve_column(df, '노출')
-    col_date    = resolve_column(df, '날짜')
-    col_camp    = resolve_column(df, '캠페인')
+    col_channel, col_revenue, col_budget, col_clicks, col_conv, col_impr, col_date, col_camp = resolve_columns(
+        df, '채널', '매출액', '예산', '클릭', '전환', '노출', '날짜', '캠페인'
+    )
 
-    if col_date:
-        df[col_date] = pd.to_datetime(df[col_date], errors='coerce')
-        df['_month'] = df[col_date].dt.to_period('M').astype(str)
+    month_col = add_month_column(df, col_date) if col_date else None
 
     # 1. 월별 매출 + 예산 추이 (그룹 바)
-    if '_month' in df.columns and col_revenue and col_budget:
-        import plotly.graph_objects as go
-        monthly = df.groupby('_month')[[col_revenue, col_budget]].sum().reset_index()
-        fig = go.Figure([
-            go.Bar(x=monthly['_month'].tolist(), y=monthly[col_revenue].tolist(),
-                   name='매출', marker_color='#0d6efd'),
-            go.Bar(x=monthly['_month'].tolist(), y=monthly[col_budget].tolist(),
-                   name='예산', marker_color='#adb5bd')
-        ])
-        fig.update_layout(barmode='group', title='월별 매출 vs 예산',
-                          xaxis_title='월', **layout)
+    if month_col and col_revenue and col_budget:
+        monthly = group_sum(df, month_col, [col_revenue, col_budget])
+        fig = grouped_bar(monthly[month_col], [
+            ('매출', monthly[col_revenue], '#0d6efd'),
+            ('예산', monthly[col_budget], '#adb5bd'),
+        ], title='월별 매출 vs 예산', x_title='월', layout=layout)
         charts['daily_sales'] = fig.to_json()
-    elif '_month' in df.columns and col_revenue:
-        monthly = df.groupby('_month')[col_revenue].sum().reset_index()
-        fig = px.line(monthly, x='_month', y=col_revenue, title='월별 매출 추이', markers=True)
-        fig.update_traces(line=dict(width=3), marker=dict(size=9))
-        fig.update_layout(**layout)
+    elif month_col and col_revenue:
+        monthly = group_sum(df, month_col, col_revenue)
+        fig = line_trend(monthly, month_col, col_revenue, title='월별 매출 추이', layout=layout)
         charts['daily_sales'] = fig.to_json()
 
     # 2. 채널별 ROI (수평 바 — ROI% = (매출-예산)/예산*100)
     if col_channel and col_revenue and col_budget:
-        agg = df.groupby(col_channel)[[col_revenue, col_budget]].sum().reset_index()
-        agg['ROI(%)'] = ((agg[col_revenue] - agg[col_budget]) / agg[col_budget] * 100).round(1)
-        agg = agg.sort_values('ROI(%)')
-        fig = px.bar(agg, x='ROI(%)', y=col_channel, orientation='h',
-                     title='채널별 ROI (%)',
-                     color='ROI(%)', color_continuous_scale='RdYlGn',
-                     text='ROI(%)')
-        fig.update_traces(texttemplate='%{text:.1f}%', textposition='outside')
-        fig.update_layout(**layout, coloraxis_showscale=False)
+        agg = group_ratio(df, col_channel, col_revenue, col_budget, 'ROI(%)', mode='gain')
+        fig = horizontal_bar(agg, 'ROI(%)', col_channel, title='채널별 ROI (%)',
+                             color_scale='RdYlGn', text_col='ROI(%)',
+                             text_template='%{text:.1f}%', layout=layout)
         charts['region_sales'] = fig.to_json()
     elif col_channel and col_revenue:
-        data = df.groupby(col_channel)[col_revenue].sum().reset_index().sort_values(col_revenue)
-        fig = px.bar(data, x=col_revenue, y=col_channel, orientation='h',
-                     title='채널별 총 매출', color=col_revenue, color_continuous_scale='Blues')
-        fig.update_layout(**layout, coloraxis_showscale=False)
+        data = group_sum(df, col_channel, col_revenue, sort_by=col_revenue)
+        fig = horizontal_bar(data, col_revenue, col_channel, title='채널별 총 매출',
+                             layout=layout)
         charts['region_sales'] = fig.to_json()
 
     # 3. 채널별 캠페인 예산 비중 (도넛)
     if col_channel and col_budget:
-        data = df.groupby(col_channel)[col_budget].sum().reset_index()
-        fig = px.pie(data, names=col_channel, values=col_budget,
-                     title='채널별 예산 배분', hole=0.4)
-        fig.update_layout(**layout)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
+        data = group_sum(df, col_channel, col_budget)
+        fig = pie_chart(data, col_channel, col_budget, title='채널별 예산 배분',
+                        hole=0.4, layout=layout)
         charts['product_distribution'] = fig.to_json()
 
     # 4. 채널별 전환율 (전환/클릭 × 100, 수평 바)
     if col_channel and col_conv and col_clicks:
-        agg = df.groupby(col_channel)[[col_conv, col_clicks]].sum().reset_index()
-        agg['전환율(%)'] = (agg[col_conv] / agg[col_clicks] * 100).round(2)
-        agg = agg.sort_values('전환율(%)')
-        fig = px.bar(agg, x='전환율(%)', y=col_channel, orientation='h',
-                     title='채널별 전환율 (%)',
-                     color='전환율(%)', color_continuous_scale='Teal',
-                     text='전환율(%)')
-        fig.update_traces(texttemplate='%{text:.2f}%', textposition='outside')
-        fig.update_layout(**layout, coloraxis_showscale=False)
+        agg = group_ratio(df, col_channel, col_conv, col_clicks, '전환율(%)', decimals=2)
+        fig = horizontal_bar(agg, '전환율(%)', col_channel, title='채널별 전환율 (%)',
+                             color_scale='Teal', text_col='전환율(%)',
+                             text_template='%{text:.2f}%', layout=layout)
         charts['category_sales'] = fig.to_json()
     elif col_channel and col_conv:
-        data = df.groupby(col_channel)[col_conv].sum().reset_index().sort_values(col_conv)
-        fig = px.bar(data, x=col_conv, y=col_channel, orientation='h',
-                     title='채널별 총 전환수', color=col_conv, color_continuous_scale='Teal')
-        fig.update_layout(**layout, coloraxis_showscale=False)
+        data = group_sum(df, col_channel, col_conv, sort_by=col_conv)
+        fig = horizontal_bar(data, col_conv, col_channel, title='채널별 총 전환수',
+                             color_scale='Teal', layout=layout)
         charts['category_sales'] = fig.to_json()
 
     # 5. 예산 vs 매출 버블 차트 (채널 색상, 노출수 = 크기)
     if col_budget and col_revenue:
-        fig = _go_scatter(df, col_budget, col_revenue, color_col=col_channel,
-                          size_col=col_impr, size_max=25,
-                          title='예산 vs 매출 (버블 크기 = 노출수)',
-                          x_label='예산', y_label='매출액', layout=layout)
+        fig = scatter_by_group(df, col_budget, col_revenue, color_col=col_channel,
+                               size_col=col_impr, size_max=25,
+                               title='예산 vs 매출 (버블 크기 = 노출수)',
+                               x_label='예산', y_label='매출액', layout=layout)
         charts['quantity_revenue'] = fig.to_json()
 
     # 6. 마케팅 퍼널 (노출 → 클릭 → 전환, 채널별 집계)
     if col_channel and col_impr and col_clicks and col_conv:
-        agg = df.groupby(col_channel)[[col_impr, col_clicks, col_conv]].sum().reset_index()
-        import plotly.graph_objects as go
+        agg = group_sum(df, col_channel, [col_impr, col_clicks, col_conv])
         fig = go.Figure()
-        colors = px.colors.qualitative.Plotly
         for i, row in agg.iterrows():
-            c = colors[i % len(colors)]
             fig.add_trace(go.Funnel(
                 name=row[col_channel],
                 y=['노출', '클릭', '전환'],
                 x=[row[col_impr], row[col_clicks], row[col_conv]],
-                marker=dict(color=c)
+                marker=dict(color=QUALITATIVE_COLORS[i % len(QUALITATIVE_COLORS)])
             ))
         fig.update_layout(title='채널별 마케팅 퍼널', **layout)
         charts['daily_quantity'] = fig.to_json()
     elif col_clicks and col_conv:
-        fig = _go_scatter(df, col_clicks, col_conv, color_col=col_channel,
-                          title='클릭수 vs 전환수',
-                          x_label='클릭수', y_label='전환수', layout=layout)
+        fig = scatter_by_group(df, col_clicks, col_conv, color_col=col_channel,
+                               title='클릭수 vs 전환수',
+                               x_label='클릭수', y_label='전환수', layout=layout)
         charts['daily_quantity'] = fig.to_json()
 
 
 def _charts_customer(df, charts, layout):
-    col_seg    = resolve_column(df, '세그먼트')
-    col_age    = resolve_column(df, '나이')
-    col_gender = resolve_column(df, '성별')
-    col_income = resolve_column(df, '소득')
-    col_purch  = resolve_column(df, '구매횟수')
-    col_value  = resolve_column(df, '구매금액')
+    col_seg, col_age, col_gender, col_income, col_purch, col_value = resolve_columns(
+        df, '세그먼트', '나이', '성별', '소득', '구매횟수', '구매금액'
+    )
     col_recency = 'Last_Purchase_Days' if 'Last_Purchase_Days' in df.columns else None
 
-    # 1. 연령 × 세그먼트 분포 (go.Histogram으로 직접 — px.histogram color 버그 우회)
+    # 1. 연령 × 세그먼트 분포 (히스토그램)
     if col_age:
-        import plotly.graph_objects as go
         group_col = col_seg if col_seg else col_gender
-        colors = px.colors.qualitative.Plotly
-        fig = go.Figure()
-        if group_col:
-            for i, grp in enumerate(sorted(df[group_col].dropna().unique())):
-                subset = df[df[group_col] == grp][col_age].dropna()
-                fig.add_trace(go.Histogram(x=subset, name=str(grp), nbinsx=15,
-                                           opacity=0.85, marker_color=colors[i % len(colors)]))
-            fig.update_layout(barmode='stack', title='고객 연령대 분포 (세그먼트별)',
-                              xaxis_title='나이', **layout)
-        else:
-            fig.add_trace(go.Histogram(x=df[col_age].dropna(), nbinsx=15, opacity=0.85))
-            fig.update_layout(title='고객 연령 분포', xaxis_title='나이', **layout)
+        title = '고객 연령대 분포 (세그먼트별)' if group_col else '고객 연령 분포'
+        fig = distribution_by_group(df, col_age, group_col, kind='histogram',
+                                    title=title, x_title='나이', nbins=15,
+                                    barmode='stack', layout=layout)
         charts['daily_sales'] = fig.to_json()
 
     # 2. 세그먼트별 총 구매금액 (수평 바, 내림차순)
     if col_seg and col_value:
-        data = df.groupby(col_seg)[col_value].sum().reset_index().sort_values(col_value)
-        fig = px.bar(data, x=col_value, y=col_seg, orientation='h',
-                     title='세그먼트별 총 구매금액',
-                     color=col_value, color_continuous_scale='Blues',
-                     text_auto='.2s')
-        fig.update_layout(**layout, coloraxis_showscale=False)
+        data = group_sum(df, col_seg, col_value, sort_by=col_value)
+        fig = horizontal_bar(data, col_value, col_seg, title='세그먼트별 총 구매금액',
+                             text_auto='.2s', layout=layout)
         charts['region_sales'] = fig.to_json()
     elif col_seg:
-        counts = df[col_seg].value_counts().reset_index()
-        counts.columns = [col_seg, 'count']
-        import plotly.graph_objects as go
-        _colors = px.colors.qualitative.Plotly
-        fig = go.Figure([go.Bar(
-            x=counts[col_seg].tolist(), y=counts['count'].tolist(),
-            marker_color=_colors[:len(counts)]
-        )])
-        fig.update_layout(title='세그먼트별 고객 수', **layout)
+        counts = value_counts_frame(df, col_seg)
+        fig = simple_bar(counts, col_seg, 'count', title='세그먼트별 고객 수', layout=layout)
         charts['region_sales'] = fig.to_json()
 
     # 3. 성별 구매금액 비중 (도넛)
     if col_gender and col_value:
-        data = df.groupby(col_gender)[col_value].sum().reset_index()
-        fig = px.pie(data, names=col_gender, values=col_value,
-                     title='성별 구매금액 비중', hole=0.4,
-                     color_discrete_sequence=px.colors.qualitative.Pastel)
-        fig.update_layout(**layout)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
+        data = group_sum(df, col_gender, col_value)
+        fig = pie_chart(data, col_gender, col_value, title='성별 구매금액 비중', hole=0.4,
+                        layout=layout, color_discrete_sequence=px.colors.qualitative.Pastel)
         charts['product_distribution'] = fig.to_json()
     elif col_gender:
-        counts = df[col_gender].value_counts().reset_index()
-        counts.columns = [col_gender, 'count']
-        fig = px.pie(counts, names=col_gender, values='count', title='성별 비율', hole=0.4)
-        fig.update_layout(**layout)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
+        counts = value_counts_frame(df, col_gender)
+        fig = pie_chart(counts, col_gender, 'count', title='성별 비율', hole=0.4, layout=layout)
         charts['product_distribution'] = fig.to_json()
 
-    # 4. 세그먼트별 구매금액 분포 (go.Box — px.box color 버그 우회)
+    # 4. 세그먼트별 구매금액 분포 (박스 플롯)
     if col_seg and col_value:
-        import plotly.graph_objects as go
-        colors = px.colors.qualitative.Plotly
-        fig = go.Figure()
-        for i, grp in enumerate(sorted(df[col_seg].dropna().unique())):
-            subset = df[df[col_seg] == grp][col_value].dropna()
-            fig.add_trace(go.Box(y=subset, name=str(grp),
-                                 marker_color=colors[i % len(colors)],
-                                 boxpoints='outliers'))
-        fig.update_layout(title='세그먼트별 구매금액 분포',
-                          yaxis_title='평균 구매금액', showlegend=True, **layout)
+        fig = distribution_by_group(df, col_value, col_seg, kind='box',
+                                    title='세그먼트별 구매금액 분포',
+                                    y_title='평균 구매금액', showlegend=True, layout=layout)
         charts['category_sales'] = fig.to_json()
 
     # 5. 소득 vs 구매금액 (세그먼트 색상, 구매횟수 = 마커 크기)
     if col_income and col_value:
         color_arg = col_seg if col_seg else col_gender
-        fig = _go_scatter(df, col_income, col_value, color_col=color_arg,
-                          size_col=col_purch, size_max=18,
-                          title='소득 vs 구매금액 (마커 크기 = 구매횟수)',
-                          x_label='소득', y_label='평균 구매금액', layout=layout)
+        fig = scatter_by_group(df, col_income, col_value, color_col=color_arg,
+                               size_col=col_purch, size_max=18,
+                               title='소득 vs 구매금액 (마커 크기 = 구매횟수)',
+                               x_label='소득', y_label='평균 구매금액', layout=layout)
         charts['quantity_revenue'] = fig.to_json()
 
-    # 6. 구매 주기 분포 (go.Histogram — px 버그 우회)
+    # 6. 구매 주기 분포 (히스토그램)
     if col_recency:
-        import plotly.graph_objects as go
-        colors = px.colors.qualitative.Plotly
-        fig = go.Figure()
-        if col_seg:
-            for i, grp in enumerate(sorted(df[col_seg].dropna().unique())):
-                subset = df[df[col_seg] == grp][col_recency].dropna()
-                fig.add_trace(go.Histogram(x=subset, name=str(grp), nbinsx=20,
-                                           opacity=0.85, marker_color=colors[i % len(colors)]))
-            fig.update_layout(barmode='stack')
-        else:
-            fig.add_trace(go.Histogram(x=df[col_recency].dropna(), nbinsx=20, opacity=0.85))
-        fig.update_layout(title='마지막 구매 후 경과일 분포 (구매 주기)',
-                          xaxis_title='경과일 (일)', **layout)
+        fig = distribution_by_group(df, col_recency, col_seg, kind='histogram',
+                                    title='마지막 구매 후 경과일 분포 (구매 주기)',
+                                    x_title='경과일 (일)', nbins=20,
+                                    barmode='stack', layout=layout)
         charts['daily_quantity'] = fig.to_json()
     elif col_age and col_purch:
-        fig = _go_scatter(df, col_age, col_purch,
-                          color_col=col_seg if col_seg else None,
-                          title='연령 vs 총 구매횟수',
-                          x_label='나이', y_label='총 구매횟수', layout=layout)
+        fig = scatter_by_group(df, col_age, col_purch,
+                               color_col=col_seg if col_seg else None,
+                               title='연령 vs 총 구매횟수',
+                               x_label='나이', y_label='총 구매횟수', layout=layout)
         charts['daily_quantity'] = fig.to_json()
 
 
@@ -1385,7 +1014,7 @@ def _charts_generic(df, charts, layout):
     cat_cols = df.select_dtypes(include='object').columns.tolist()
 
     if cat_cols and num_cols:
-        data = df.groupby(cat_cols[0])[num_cols[0]].sum().reset_index().sort_values(num_cols[0], ascending=False).head(15)
+        data = group_sum(df, cat_cols[0], num_cols[0], sort_by=num_cols[0], ascending=False).head(15)
         fig = px.bar(data, x=cat_cols[0], y=num_cols[0], title=f'{cat_cols[0]}별 {num_cols[0]}')
         fig.update_layout(**layout)
         charts['region_sales'] = fig.to_json()
@@ -1396,14 +1025,31 @@ def _charts_generic(df, charts, layout):
         charts['quantity_revenue'] = fig.to_json()
 
     if cat_cols:
-        counts = df[cat_cols[0]].value_counts().head(10).reset_index()
-        counts.columns = [cat_cols[0], 'count']
-        fig = px.pie(counts, names=cat_cols[0], values='count', title=f'{cat_cols[0]} 분포')
-        fig.update_layout(**layout)
-        fig.update_traces(textposition='inside', textinfo='percent+label')
+        counts = value_counts_frame(df, cat_cols[0], top=10)
+        fig = pie_chart(counts, cat_cols[0], 'count', title=f'{cat_cols[0]} 분포', layout=layout)
         charts['product_distribution'] = fig.to_json()
 
 # 주요 지표 계산 함수 (4개 템플릿 전체 지원)
+def _sum_avg_metrics(metrics, df, column, total_key, avg_key, decimals=None):
+    """합계/평균 지표 기록 (decimals=None → 정수 반올림)"""
+    if not column:
+        return
+    metrics[total_key] = int(df[column].sum())
+    mean = df[column].mean()
+    metrics[avg_key] = int(mean) if decimals is None else round(mean, decimals)
+
+
+def _profit_metrics(metrics, df, value_col, cost_col, mode='margin'):
+    """수익 지표 기록 — mode='margin'은 이익률, 'gain'은 ROI"""
+    if not (value_col and cost_col):
+        return
+    total, cost = df[value_col].sum(), df[cost_col].sum()
+    metrics['total_profit'] = int(total - cost)
+    metrics['profit_margin'] = round(
+        gain_pct(total, cost) if mode == 'gain' else ratio_pct(total - cost, total), 1
+    )
+
+
 def calculate_metrics(df):
     metrics = {}
     try:
@@ -1411,62 +1057,34 @@ def calculate_metrics(df):
         metrics['total_records'] = len(df)
 
         if ttype == 'sales':
-            col_revenue  = resolve_column(df, '매출액')
-            col_quantity = resolve_column(df, '판매량')
-            col_cost     = resolve_column(df, '비용')
-            col_product  = resolve_column(df, '제품')
-            if col_revenue:
-                metrics['total_revenue'] = int(df[col_revenue].sum())
-                metrics['avg_revenue']   = int(df[col_revenue].mean())
-            if col_quantity:
-                metrics['total_quantity'] = int(df[col_quantity].sum())
-                metrics['avg_quantity']   = round(df[col_quantity].mean(), 1)
-            if col_cost and col_revenue:
-                profit = df[col_revenue].sum() - df[col_cost].sum()
-                metrics['total_profit']  = int(profit)
-                metrics['profit_margin'] = round((profit / df[col_revenue].sum()) * 100, 1)
+            col_revenue, col_quantity, col_cost, col_product = resolve_columns(
+                df, '매출액', '판매량', '비용', '제품'
+            )
+            _sum_avg_metrics(metrics, df, col_revenue, 'total_revenue', 'avg_revenue')
+            _sum_avg_metrics(metrics, df, col_quantity, 'total_quantity', 'avg_quantity', decimals=1)
+            _profit_metrics(metrics, df, col_revenue, col_cost)
             if col_product:
                 metrics['unique_products'] = df[col_product].nunique()
 
         elif ttype == 'crop':
-            col_crop  = resolve_column(df, '작물')
-            col_yield = resolve_column(df, '수확량')
-            col_rain  = resolve_column(df, '강수량')
-            if col_yield:
-                metrics['total_revenue'] = int(df[col_yield].sum())
-                metrics['avg_revenue']   = int(df[col_yield].mean())
-            if col_rain:
-                metrics['total_quantity'] = int(df[col_rain].sum())
-                metrics['avg_quantity']   = round(df[col_rain].mean(), 1)
+            col_crop, col_yield, col_rain = resolve_columns(df, '작물', '수확량', '강수량')
+            _sum_avg_metrics(metrics, df, col_yield, 'total_revenue', 'avg_revenue')
+            _sum_avg_metrics(metrics, df, col_rain, 'total_quantity', 'avg_quantity', decimals=1)
             if col_crop:
                 metrics['unique_products'] = df[col_crop].nunique()
 
         elif ttype == 'marketing':
-            col_revenue = resolve_column(df, '매출액')
-            col_budget  = resolve_column(df, '예산')
-            col_conv    = resolve_column(df, '전환')
-            col_clicks  = resolve_column(df, '클릭')
-            if col_revenue:
-                metrics['total_revenue'] = int(df[col_revenue].sum())
-                metrics['avg_revenue']   = int(df[col_revenue].mean())
-            if col_budget and col_revenue:
-                roi = (df[col_revenue].sum() - df[col_budget].sum()) / df[col_budget].sum() * 100
-                metrics['total_profit']  = int(df[col_revenue].sum() - df[col_budget].sum())
-                metrics['profit_margin'] = round(roi, 1)
-            if col_conv:
-                metrics['total_quantity'] = int(df[col_conv].sum())
-                metrics['avg_quantity']   = round(df[col_conv].mean(), 1)
+            col_revenue, col_budget, col_conv, col_clicks = resolve_columns(
+                df, '매출액', '예산', '전환', '클릭'
+            )
+            _sum_avg_metrics(metrics, df, col_revenue, 'total_revenue', 'avg_revenue')
+            _profit_metrics(metrics, df, col_revenue, col_budget, mode='gain')
+            _sum_avg_metrics(metrics, df, col_conv, 'total_quantity', 'avg_quantity', decimals=1)
 
         elif ttype == 'customer':
-            col_purch = resolve_column(df, '구매횟수')
-            col_value = resolve_column(df, '구매금액')
-            col_seg   = resolve_column(df, '세그먼트')
-            if col_value:
-                metrics['total_revenue'] = int(df[col_value].sum())
-                metrics['avg_revenue']   = int(df[col_value].mean())
-            if col_purch:
-                metrics['total_quantity'] = int(df[col_purch].sum())
-                metrics['avg_quantity']   = round(df[col_purch].mean(), 1)
+            col_purch, col_value, col_seg = resolve_columns(df, '구매횟수', '구매금액', '세그먼트')
+            _sum_avg_metrics(metrics, df, col_value, 'total_revenue', 'avg_revenue')
+            _sum_avg_metrics(metrics, df, col_purch, 'total_quantity', 'avg_quantity', decimals=1)
             if col_seg:
                 metrics['unique_products'] = df[col_seg].nunique()
 
@@ -1497,70 +1115,57 @@ def generate_insights(df):
 
 def _insights_sales(df):
     ins = {}
-    col_date     = resolve_column(df, '날짜')
-    col_revenue  = resolve_column(df, '매출액')
-    col_region   = resolve_column(df, '지역')
-    col_product  = resolve_column(df, '제품')
-    col_category = resolve_column(df, '카테고리')
-    col_quantity = resolve_column(df, '판매량')
-    col_cost     = resolve_column(df, '비용')
+    col_date, col_revenue, col_region, col_product, col_category, col_quantity, col_cost = resolve_columns(
+        df, '날짜', '매출액', '지역', '제품', '카테고리', '판매량', '비용'
+    )
 
     if col_date and col_revenue:
         df2 = df.copy()
-        df2[col_date] = pd.to_datetime(df2[col_date], errors='coerce')
-        df2['_month'] = df2[col_date].dt.to_period('M').astype(str)
-        monthly = df2.groupby('_month')[col_revenue].sum()
-        best_month = monthly.idxmax()
-        worst_month = monthly.idxmin()
-        growth = ((monthly.iloc[-1] - monthly.iloc[0]) / monthly.iloc[0] * 100) if len(monthly) > 1 else 0
+        month_col = add_month_column(df2, col_date)
+        monthly = df2.groupby(month_col)[col_revenue].sum()
+        growth = gain_pct(monthly.iloc[-1], monthly.iloc[0]) if len(monthly) > 1 else 0
         ins['daily_sales'] = (
-            f"📈 최고 매출 월은 <strong>{best_month}</strong> "
-            f"({int(monthly.max()):,}원), 최저는 <strong>{worst_month}</strong> ({int(monthly.min()):,}원)입니다. "
+            f"📈 최고 매출 월은 <strong>{monthly.idxmax()}</strong> "
+            f"({int(monthly.max()):,}원), 최저는 <strong>{monthly.idxmin()}</strong> ({int(monthly.min()):,}원)입니다. "
             f"전체 기간 동안 매출은 약 <strong>{growth:+.1f}%</strong> 변화했습니다."
         )
 
     if col_region and col_revenue:
-        by_region = df.groupby(col_region)[col_revenue].sum().sort_values(ascending=False)
-        top = by_region.index[0]
-        top_pct = by_region.iloc[0] / by_region.sum() * 100
+        top, top_pct, by_region = top_share(df, col_region, col_revenue)
         ins['region_sales'] = (
             f"🏆 <strong>{top}</strong> 지역이 전체 매출의 <strong>{top_pct:.1f}%</strong>를 차지하며 1위입니다. "
             f"하위 지역과의 매출 차이는 {int(by_region.iloc[0] - by_region.iloc[-1]):,}원입니다."
         )
 
     if col_product and col_revenue:
-        by_prod = df.groupby(col_product)[col_revenue].sum().sort_values(ascending=False)
-        top = by_prod.index[0]
-        top_pct = by_prod.iloc[0] / by_prod.sum() * 100
+        top, top_pct, by_prod = top_share(df, col_product, col_revenue)
         ins['product_distribution'] = (
             f"🥇 <strong>{top}</strong> 제품이 전체 매출의 <strong>{top_pct:.1f}%</strong>를 차지하는 핵심 제품입니다. "
-            f"상위 2개 제품이 전체의 {(by_prod.iloc[:2].sum() / by_prod.sum() * 100):.1f}%를 차지합니다."
+            f"상위 2개 제품이 전체의 {ratio_pct(by_prod.iloc[:2].sum(), by_prod.sum()):.1f}%를 차지합니다."
         )
 
     if col_category and col_revenue:
-        by_cat = df.groupby(col_category)[col_revenue].sum().sort_values(ascending=False)
-        top = by_cat.index[0]
+        by_cat = group_agg(df, col_category, col_revenue)
         ins['category_sales'] = (
-            f"📦 <strong>{top}</strong> 카테고리가 가장 높은 매출을 기록했습니다. "
+            f"📦 <strong>{by_cat.index[0]}</strong> 카테고리가 가장 높은 매출을 기록했습니다. "
             f"카테고리 간 매출 편차는 {int(by_cat.std()):,}원으로, "
             f"{'편차가 크므로 집중 육성 카테고리를 검토하세요.' if by_cat.std() > by_cat.mean() * 0.3 else '카테고리별 매출이 비교적 균등합니다.'}"
         )
 
     if col_quantity and col_revenue:
-        corr = df[[col_quantity, col_revenue]].corr().iloc[0, 1]
+        corr = correlation(df, col_quantity, col_revenue)
         ins['quantity_revenue'] = (
             f"📊 판매량과 매출액의 상관계수는 <strong>{corr:.2f}</strong>입니다. "
             f"{'강한 양의 상관관계로, 판매량 증가가 매출 향상으로 이어집니다.' if corr > 0.7 else '판매량 외 단가·할인율 등 다른 요인도 매출에 영향을 미칩니다.'}"
         )
 
     if col_product and col_revenue and col_cost:
-        df2 = df.groupby(col_product)[[col_revenue, col_cost]].sum()
-        df2['margin'] = (df2[col_revenue] - df2[col_cost]) / df2[col_revenue] * 100
-        best = df2['margin'].idxmax()
-        worst = df2['margin'].idxmin()
+        margins = group_ratio(df, col_product, col_revenue, col_cost, 'margin',
+                              mode='margin', sort=False).set_index(col_product)['margin']
+        best, worst = margins.idxmax(), margins.idxmin()
         ins['daily_quantity'] = (
-            f"💰 이익률이 가장 높은 제품은 <strong>{best}</strong> ({df2.loc[best, 'margin']:.1f}%), "
-            f"가장 낮은 제품은 <strong>{worst}</strong> ({df2.loc[worst, 'margin']:.1f}%)입니다. "
+            f"💰 이익률이 가장 높은 제품은 <strong>{best}</strong> ({margins[best]:.1f}%), "
+            f"가장 낮은 제품은 <strong>{worst}</strong> ({margins[worst]:.1f}%)입니다. "
             f"저마진 제품의 원가 절감 또는 가격 재조정을 검토하세요."
         )
     return ins
@@ -1568,21 +1173,15 @@ def _insights_sales(df):
 
 def _insights_crop(df):
     ins = {}
-    col_crop    = resolve_column(df, '작물')
-    col_yield   = resolve_column(df, '수확량')
-    col_climate = resolve_column(df, '기후')
-    col_soil    = resolve_column(df, '토양')
-    col_rain    = resolve_column(df, '강수량')
-    col_temp    = resolve_column(df, '온도')
-    col_fert    = resolve_column(df, '비료')
+    col_crop, col_yield, col_climate, col_soil, col_rain, col_temp, col_fert = resolve_columns(
+        df, '작물', '수확량', '기후', '토양', '강수량', '온도', '비료'
+    )
 
     if col_crop and col_yield:
-        by_crop = df.groupby(col_crop)[col_yield].mean().sort_values(ascending=False)
-        top = by_crop.index[0]
-        low = by_crop.index[-1]
+        by_crop = group_agg(df, col_crop, col_yield, how='mean')
         ins['daily_sales'] = (
-            f"🌾 <strong>{top}</strong>이 평균 {int(by_crop.iloc[0]):,}kg으로 가장 높은 수확량을 보입니다. "
-            f"<strong>{low}</strong>와의 차이는 {int(by_crop.iloc[0] - by_crop.iloc[-1]):,}kg이며, "
+            f"🌾 <strong>{by_crop.index[0]}</strong>이 평균 {int(by_crop.iloc[0]):,}kg으로 가장 높은 수확량을 보입니다. "
+            f"<strong>{by_crop.index[-1]}</strong>와의 차이는 {int(by_crop.iloc[0] - by_crop.iloc[-1]):,}kg이며, "
             f"박스플롯의 수염 길이가 클수록 수확량 변동성이 높습니다."
         )
 
@@ -1597,23 +1196,21 @@ def _insights_crop(df):
 
     if col_crop:
         counts = df[col_crop].value_counts()
-        dominant = counts.index[0]
         ins['product_distribution'] = (
-            f"📋 데이터셋에서 <strong>{dominant}</strong>이 전체의 {counts.iloc[0]/len(df)*100:.1f}%를 차지합니다. "
+            f"📋 데이터셋에서 <strong>{counts.index[0]}</strong>이 전체의 {ratio_pct(counts.iloc[0], len(df)):.1f}%를 차지합니다. "
             f"균형 잡힌 비교 분석을 위해 각 작물별 데이터 수가 균등한지 확인하세요."
         )
 
     if col_soil and col_yield:
-        by_soil = df.groupby(col_soil)[col_yield].median().sort_values(ascending=False)
-        top = by_soil.index[0]
+        by_soil = group_agg(df, col_soil, col_yield, how='median')
         ins['category_sales'] = (
-            f"🌱 <strong>{top}</strong> 토양이 중앙값 기준으로 수확량이 가장 높습니다. "
+            f"🌱 <strong>{by_soil.index[0]}</strong> 토양이 중앙값 기준으로 수확량이 가장 높습니다. "
             f"바이올린 플롯의 폭이 넓을수록 해당 토양에서의 수확량 편차가 크며, "
             f"재배 환경 관리의 일관성을 높일 필요가 있습니다."
         )
 
     if col_rain and col_yield:
-        corr = df[[col_rain, col_yield]].corr().iloc[0, 1]
+        corr = correlation(df, col_rain, col_yield)
         ins['quantity_revenue'] = (
             f"💧 강수량과 수확량의 상관계수: <strong>{corr:.2f}</strong>. "
             f"{'강수량이 수확량에 큰 영향을 미치므로 관개 시스템이 중요합니다.' if corr > 0.5 else '강수량 외 다른 요인(비료, 온도 등)도 수확량에 복합적으로 작용합니다.'} "
@@ -1621,7 +1218,7 @@ def _insights_crop(df):
         )
 
     if col_temp and col_yield:
-        corr = df[[col_temp, col_yield]].corr().iloc[0, 1]
+        corr = correlation(df, col_temp, col_yield)
         opt_temp = df.groupby(pd.cut(df[col_temp], bins=5))[col_yield].mean().idxmax()
         ins['daily_quantity'] = (
             f"🌡️ 기온과 수확량의 상관계수: <strong>{corr:.2f}</strong>. "
@@ -1633,64 +1230,55 @@ def _insights_crop(df):
 
 def _insights_marketing(df):
     ins = {}
-    col_channel = resolve_column(df, '채널')
-    col_revenue = resolve_column(df, '매출액')
-    col_budget  = resolve_column(df, '예산')
-    col_clicks  = resolve_column(df, '클릭')
-    col_conv    = resolve_column(df, '전환')
-    col_impr    = resolve_column(df, '노출')
+    col_channel, col_revenue, col_budget, col_clicks, col_conv, col_impr = resolve_columns(
+        df, '채널', '매출액', '예산', '클릭', '전환', '노출'
+    )
 
     if col_revenue and col_budget:
         df2 = df.copy()
-        df2[col_revenue] = pd.to_numeric(df2[col_revenue], errors='coerce')
-        df2[col_budget]  = pd.to_numeric(df2[col_budget], errors='coerce')
-        total_roi = (df2[col_revenue].sum() - df2[col_budget].sum()) / df2[col_budget].sum() * 100
+        to_numeric_column(df2, col_revenue)
+        to_numeric_column(df2, col_budget)
+        total_roi = gain_pct(df2[col_revenue].sum(), df2[col_budget].sum())
 
         col_date = resolve_column(df, '날짜')
         if col_date:
-            df2[col_date] = pd.to_datetime(df2[col_date], errors='coerce')
-            df2['_month'] = df2[col_date].dt.to_period('M').astype(str)
-            monthly_rev = df2.groupby('_month')[col_revenue].sum()
-            best_m = monthly_rev.idxmax()
+            month_col = add_month_column(df2, col_date)
+            monthly_rev = df2.groupby(month_col)[col_revenue].sum()
             ins['daily_sales'] = (
                 f"📅 전체 평균 ROI는 <strong>{total_roi:.1f}%</strong>입니다. "
-                f"<strong>{best_m}</strong>에 최대 매출 {int(monthly_rev.max()):,}원을 기록했습니다. "
+                f"<strong>{monthly_rev.idxmax()}</strong>에 최대 매출 {int(monthly_rev.max()):,}원을 기록했습니다. "
                 f"예산 대비 매출 막대가 큰 달의 캠페인 전략을 분석하세요."
             )
 
     if col_channel and col_revenue and col_budget:
-        agg = df.groupby(col_channel)[[col_revenue, col_budget]].sum()
-        agg['roi'] = (agg[col_revenue] - agg[col_budget]) / agg[col_budget] * 100
-        best_ch = agg['roi'].idxmax()
-        worst_ch = agg['roi'].idxmin()
+        roi = group_ratio(df, col_channel, col_revenue, col_budget, 'roi',
+                          mode='gain', sort=False).set_index(col_channel)['roi']
+        best_ch, worst_ch = roi.idxmax(), roi.idxmin()
         ins['region_sales'] = (
-            f"🎯 ROI 최고 채널: <strong>{best_ch}</strong> ({agg.loc[best_ch, 'roi']:.1f}%), "
-            f"최저: <strong>{worst_ch}</strong> ({agg.loc[worst_ch, 'roi']:.1f}%). "
-            f"{'음수 ROI 채널은 예산 조정 또는 캠페인 개선이 필요합니다.' if agg['roi'].min() < 0 else '모든 채널이 양의 ROI를 기록 중입니다.'}"
+            f"🎯 ROI 최고 채널: <strong>{best_ch}</strong> ({roi[best_ch]:.1f}%), "
+            f"최저: <strong>{worst_ch}</strong> ({roi[worst_ch]:.1f}%). "
+            f"{'음수 ROI 채널은 예산 조정 또는 캠페인 개선이 필요합니다.' if roi.min() < 0 else '모든 채널이 양의 ROI를 기록 중입니다.'}"
         )
 
     if col_channel and col_budget:
-        by_ch = df.groupby(col_channel)[col_budget].sum()
-        top_ch = by_ch.idxmax()
-        top_pct = by_ch.max() / by_ch.sum() * 100
+        top_ch, top_pct, _ = top_share(df, col_channel, col_budget)
         ins['product_distribution'] = (
             f"💸 예산의 <strong>{top_pct:.1f}%</strong>가 <strong>{top_ch}</strong> 채널에 집중되어 있습니다. "
             f"{'채널 다변화를 통해 리스크 분산을 고려하세요.' if top_pct > 40 else '채널별 예산 배분이 비교적 균등합니다.'}"
         )
 
     if col_channel and col_conv and col_clicks:
-        agg = df.groupby(col_channel)[[col_conv, col_clicks]].sum()
-        agg['cvr'] = agg[col_conv] / agg[col_clicks] * 100
-        best = agg['cvr'].idxmax()
-        avg_cvr = agg['cvr'].mean()
+        cvr = group_ratio(df, col_channel, col_conv, col_clicks, 'cvr',
+                          decimals=2, sort=False).set_index(col_channel)['cvr']
+        best = cvr.idxmax()
         ins['category_sales'] = (
-            f"✅ 전환율 1위 채널: <strong>{best}</strong> ({agg.loc[best, 'cvr']:.2f}%). "
-            f"전체 평균 전환율은 {avg_cvr:.2f}%이며, "
+            f"✅ 전환율 1위 채널: <strong>{best}</strong> ({cvr[best]:.2f}%). "
+            f"전체 평균 전환율은 {cvr.mean():.2f}%이며, "
             f"전환율이 낮은 채널은 랜딩 페이지 및 타겟팅 최적화를 검토하세요."
         )
 
     if col_budget and col_revenue:
-        corr = pd.to_numeric(df[col_budget], errors='coerce').corr(pd.to_numeric(df[col_revenue], errors='coerce'))
+        corr = correlation(df, col_budget, col_revenue)
         ins['quantity_revenue'] = (
             f"💰 예산-매출 상관계수: <strong>{corr:.2f}</strong>. "
             f"{'예산 투자가 매출로 효율적으로 전환되고 있습니다.' if corr > 0.7 else '예산 증가가 반드시 매출 증가로 이어지지 않습니다. 캠페인 품질을 점검하세요.'} "
@@ -1698,11 +1286,11 @@ def _insights_marketing(df):
         )
 
     if col_channel and col_impr and col_clicks and col_conv:
-        agg = df.groupby(col_channel)[[col_impr, col_clicks, col_conv]].sum()
-        agg['ctr'] = agg[col_clicks] / agg[col_impr] * 100
-        best_ctr = agg['ctr'].idxmax()
+        ctr = group_ratio(df, col_channel, col_clicks, col_impr, 'ctr',
+                          decimals=2, sort=False).set_index(col_channel)['ctr']
+        best_ctr = ctr.idxmax()
         ins['daily_quantity'] = (
-            f"📣 퍼널 분석: 클릭률(CTR) 최고 채널은 <strong>{best_ctr}</strong> ({agg.loc[best_ctr, 'ctr']:.2f}%). "
+            f"📣 퍼널 분석: 클릭률(CTR) 최고 채널은 <strong>{best_ctr}</strong> ({ctr[best_ctr]:.2f}%). "
             f"노출 대비 전환이 낮은 채널은 클릭 후 경험(UX, 오퍼) 개선이 필요합니다. "
             f"퍼널 각 단계의 이탈률을 분석해 병목 구간을 파악하세요."
         )
@@ -1711,36 +1299,28 @@ def _insights_marketing(df):
 
 def _insights_customer(df):
     ins = {}
-    col_seg    = resolve_column(df, '세그먼트')
-    col_age    = resolve_column(df, '나이')
-    col_gender = resolve_column(df, '성별')
-    col_income = resolve_column(df, '소득')
-    col_purch  = resolve_column(df, '구매횟수')
-    col_value  = resolve_column(df, '구매금액')
+    col_seg, col_age, col_gender, col_income, col_purch, col_value = resolve_columns(
+        df, '세그먼트', '나이', '성별', '소득', '구매횟수', '구매금액'
+    )
     col_recency = 'Last_Purchase_Days' if 'Last_Purchase_Days' in df.columns else None
 
     if col_age:
-        avg_age = df[col_age].mean()
-        mode_range = pd.cut(df[col_age], bins=[0,20,30,40,50,60,100]).value_counts().idxmax()
+        mode_range = pd.cut(df[col_age], bins=[0, 20, 30, 40, 50, 60, 100]).value_counts().idxmax()
         ins['daily_sales'] = (
-            f"👤 평균 고객 연령: <strong>{avg_age:.1f}세</strong>, "
+            f"👤 평균 고객 연령: <strong>{df[col_age].mean():.1f}세</strong>, "
             f"가장 많은 연령대: <strong>{mode_range}</strong>. "
             f"핵심 연령대에 맞는 마케팅 메시지와 채널 전략을 수립하세요."
         )
 
     if col_seg and col_value:
-        by_seg = df.groupby(col_seg)[col_value].sum().sort_values(ascending=False)
-        top = by_seg.index[0]
-        top_pct = by_seg.iloc[0] / by_seg.sum() * 100
+        top, top_pct, _ = top_share(df, col_seg, col_value)
         ins['region_sales'] = (
             f"💼 <strong>{top}</strong> 세그먼트가 총 구매금액의 <strong>{top_pct:.1f}%</strong>를 차지합니다. "
             f"고가치 세그먼트 유지에 집중하고, 저가치 세그먼트의 업셀링 기회를 모색하세요."
         )
 
     if col_gender and col_value:
-        by_gender = df.groupby(col_gender)[col_value].sum()
-        dominant = by_gender.idxmax()
-        pct = by_gender.max() / by_gender.sum() * 100
+        dominant, pct, _ = top_share(df, col_gender, col_value)
         ins['product_distribution'] = (
             f"⚖️ <strong>{dominant}</strong> 고객이 전체 구매금액의 <strong>{pct:.1f}%</strong>를 차지합니다. "
             f"{'성별 구매 격차가 크므로 비중이 낮은 성별 대상 프로모션을 검토하세요.' if pct > 60 else '성별 구매금액 비중이 비교적 균등합니다.'}"
@@ -1749,15 +1329,14 @@ def _insights_customer(df):
     if col_seg and col_value:
         by_seg = df.groupby(col_seg)[col_value]
         cv = (by_seg.std() / by_seg.mean()).sort_values(ascending=False)
-        high_var = cv.index[0]
         ins['category_sales'] = (
-            f"📊 <strong>{high_var}</strong> 세그먼트 내 구매금액 편차가 가장 큽니다 (CV: {cv.iloc[0]:.2f}). "
+            f"📊 <strong>{cv.index[0]}</strong> 세그먼트 내 구매금액 편차가 가장 큽니다 (CV: {cv.iloc[0]:.2f}). "
             f"박스플롯에서 이상치(outlier)가 많은 세그먼트는 VIP 고객과 일반 고객이 혼재되어 있습니다. "
             f"세분화된 개인화 마케팅이 효과적입니다."
         )
 
     if col_income and col_value:
-        corr = pd.to_numeric(df[col_income], errors='coerce').corr(pd.to_numeric(df[col_value], errors='coerce'))
+        corr = correlation(df, col_income, col_value)
         ins['quantity_revenue'] = (
             f"💳 소득-구매금액 상관계수: <strong>{corr:.2f}</strong>. "
             f"{'소득이 높을수록 구매금액도 높아 프리미엄 상품 전략이 유효합니다.' if corr > 0.5 else '소득과 구매금액의 상관이 낮습니다. 가격 감도보다 다른 요인(선호도, 브랜드)이 중요합니다.'} "
@@ -1765,15 +1344,14 @@ def _insights_customer(df):
         )
 
     if col_recency:
-        avg_days = df[col_recency].mean()
-        churned_pct = (df[col_recency] > 90).sum() / len(df) * 100
+        churned_pct = ratio_pct((df[col_recency] > 90).sum(), len(df))
         ins['daily_quantity'] = (
-            f"⏰ 평균 마지막 구매 후 경과일: <strong>{avg_days:.1f}일</strong>. "
+            f"⏰ 평균 마지막 구매 후 경과일: <strong>{df[col_recency].mean():.1f}일</strong>. "
             f"90일 이상 미구매 고객 비율: <strong>{churned_pct:.1f}%</strong>. "
             f"{'이탈 위험 고객 비중이 높습니다. 재활성화 캠페인을 즉시 실행하세요.' if churned_pct > 30 else '고객 구매 주기가 양호합니다. 재구매 유도 타이밍을 최적화하세요.'}"
         )
     elif col_age and col_purch:
-        corr = pd.to_numeric(df[col_age], errors='coerce').corr(pd.to_numeric(df[col_purch], errors='coerce'))
+        corr = correlation(df, col_age, col_purch)
         ins['daily_quantity'] = (
             f"🔄 연령-구매횟수 상관계수: <strong>{corr:.2f}</strong>. "
             f"{'연령이 높을수록 구매 충성도가 높습니다.' if corr > 0.3 else '연령과 구매횟수의 상관이 낮습니다. 세그먼트 색상별로 구매 패턴의 차이를 확인하세요.'}"
@@ -1787,9 +1365,8 @@ def _insights_customer(df):
 def delete_dataset(dataset_id):
     dataset = Dataset.query.get_or_404(dataset_id)
     
-    if dataset.user_id != current_user.id:
-        flash(get_message('접근 권한이 없습니다.', 'Access denied.'), 'danger')
-        return redirect(url_for('dashboard'))
+    if not is_owner(dataset):
+        return access_denied('dashboard')
     
     if os.path.exists(dataset.file_path):
         os.remove(dataset.file_path)
@@ -1797,7 +1374,7 @@ def delete_dataset(dataset_id):
     db.session.delete(dataset)
     db.session.commit()
     
-    flash(get_message('데이터셋이 삭제되었습니다.', 'Dataset deleted successfully.'), 'success')
+    flash_msg('dataset_deleted', 'success')
     return redirect(url_for('dashboard'))
 
 
@@ -1819,33 +1396,23 @@ def ocr_upload():
     try:
         # 파일 확인
         if 'file' not in request.files:
-            flash('파일이 없습니다.' if session.get('language') == 'ko' else 'No file uploaded.', 'danger')
+            flash_msg('no_file_uploaded', 'danger')
             return redirect(url_for('ocr_scan'))
         
         file = request.files['file']
         
         if file.filename == '':
-            flash('파일이 선택되지 않았습니다.' if session.get('language') == 'ko' else 'No file selected.', 'danger')
+            flash_msg('no_file_selected', 'danger')
             return redirect(url_for('ocr_scan'))
         
         # 허용된 확장자 확인
         allowed_extensions = {'png', 'jpg', 'jpeg', 'pdf'}
         if not ('.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions):
-            flash('지원하지 않는 파일 형식입니다. (PNG, JPG, PDF만 가능)' if session.get('language') == 'ko' else 'Unsupported file format. (PNG, JPG, PDF only)', 'danger')
+            flash_msg('invalid_ocr_format', 'danger')
             return redirect(url_for('ocr_scan'))
         
         # 파일 저장
-        from werkzeug.utils import secure_filename
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        unique_filename = f"ocr_{timestamp}_{filename}"
-        
-        # UPLOAD_FOLDER 확인
-        upload_folder = app.config.get('UPLOAD_FOLDER', 'static/uploads')
-        os.makedirs(upload_folder, exist_ok=True)
-        
-        filepath = os.path.join(upload_folder, unique_filename)
-        file.save(filepath)
+        unique_filename, filepath, _ = save_upload(file, ['ocr'])
         
         print(f"✅ 파일 저장: {filepath}")
         
@@ -1876,14 +1443,7 @@ def ocr_upload():
                 df = result['data']  # DataFrame 가져오기
                 
                 # 데이터를 리스트로 변환 (NaN → None 변환으로 JSON 직렬화 오류 방지)
-                import math
-                def _safe(v):
-                    if isinstance(v, float) and math.isnan(v):
-                        return None
-                    if hasattr(v, 'item'):
-                        v = v.item()
-                    return v
-                data = [[_safe(v) for v in row] for row in df.values.tolist()]
+                data = dataframe_rows(df)
                 columns = df.columns.tolist()
 
                 # 세션에 저장
@@ -1908,7 +1468,7 @@ def ocr_upload():
                 ocr_session.error_message = error_msg
                 db.session.commit()
                 
-                flash(f'OCR 처리 실패: {error_msg}' if session.get('language') == 'ko' else f'OCR failed: {error_msg}', 'danger')
+                flash_msg('ocr_failed', 'danger', error=error_msg)
                 return redirect(url_for('ocr_scan'))
         
         except Exception as e:
@@ -1920,7 +1480,7 @@ def ocr_upload():
             ocr_session.error_message = str(e)
             db.session.commit()
             
-            flash(f'OCR 처리 중 오류가 발생했습니다: {str(e)}' if session.get('language') == 'ko' else f'OCR processing error: {str(e)}', 'danger')
+            flash_msg('ocr_error', 'danger', error=str(e))
             return redirect(url_for('ocr_scan'))
     
     except Exception as e:
@@ -1928,7 +1488,7 @@ def ocr_upload():
         import traceback
         traceback.print_exc()
         
-        flash('파일 업로드 중 오류가 발생했습니다.' if session.get('language') == 'ko' else 'File upload error.', 'danger')
+        flash_msg('upload_error', 'danger')
         return redirect(url_for('ocr_scan'))
     
     # ✅ 이 부분은 절대 실행되지 않지만, 안전을 위해 추가
@@ -1941,13 +1501,12 @@ def ocr_verify(session_id):
     ocr_session = OCRSession.query.get_or_404(session_id)
     
     # 권한 확인
-    if ocr_session.user_id != current_user.id:
-        flash('접근 권한이 없습니다.' if session.get('language') == 'ko' else 'Access denied.', 'danger')
-        return redirect(url_for('dashboard'))
+    if not is_owner(ocr_session):
+        return access_denied()
     
     # 데이터 확인
     if not ocr_session.extracted_data:
-        flash('추출된 데이터가 없습니다.' if session.get('language') == 'ko' else 'No extracted data.', 'danger')
+        flash_msg('no_extracted_data', 'danger')
         return redirect(url_for('ocr_scan'))
     
     data = ocr_session.extracted_data.get('data', [])
@@ -1967,9 +1526,8 @@ def ocr_save(session_id):
         ocr_session = OCRSession.query.get_or_404(session_id)
         
         # 권한 확인
-        if ocr_session.user_id != current_user.id:
-            flash('접근 권한이 없습니다.' if session.get('language') == 'ko' else 'Access denied.', 'danger')
-            return redirect(url_for('dashboard'))
+        if not is_owner(ocr_session):
+            return access_denied()
         
         # 폼 데이터
         dataset_name = request.form.get('dataset_name')
@@ -1977,11 +1535,10 @@ def ocr_save(session_id):
         data_json = request.form.get('data')
         
         if not dataset_name or not data_json:
-            flash('필수 항목을 입력해주세요.' if session.get('language') == 'ko' else 'Please fill in required fields.', 'danger')
+            flash_msg('required_fields', 'danger')
             return redirect(url_for('ocr_verify', session_id=session_id))
         
         # JSON 파싱
-        import json
         data_dict = json.loads(data_json)
         headers = data_dict.get('headers', [])
         rows = data_dict.get('rows', [])
@@ -1991,40 +1548,27 @@ def ocr_save(session_id):
         
         # Excel 파일로 저장
         excel_filename = f"ocr_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{secure_filename(dataset_name)}.xlsx"
-        excel_filepath = os.path.join(app.config['UPLOAD_FOLDER'], excel_filename)
+        excel_filepath = os.path.join(upload_folder(), excel_filename)
         df.to_excel(excel_filepath, index=False)
         
         # 데이터셋 생성
-        dataset = Dataset(
+        create_dataset_from_dataframe(
+            df,
             name=dataset_name,
             description=description,
             filename=excel_filename,
             file_path=excel_filepath,
-            user_id=current_user.id,
-            row_count=len(df),
-            column_count=len(df.columns),
-            columns=df.columns.tolist(),
             is_ocr=True
         )
-        db.session.add(dataset)
-        
-        # DB에 데이터 저장
-        for _, row in df.iterrows():
-            record = DataRecord(
-                dataset=dataset,
-                data=row.to_dict()
-            )
-            db.session.add(record)
-        
         db.session.commit()
         
-        flash('데이터가 성공적으로 저장되었습니다!' if session.get('language') == 'ko' else 'Data saved successfully!', 'success')
+        flash_msg('data_saved', 'success')
         return redirect(url_for('dashboard'))
     
     except Exception as e:
         db.session.rollback()
         print(f"데이터 저장 오류: {e}")
-        flash(f'데이터 저장 중 오류가 발생했습니다: {str(e)}' if session.get('language') == 'ko' else f'Error saving data: {str(e)}', 'danger')
+        flash_msg('save_error', 'danger', error=str(e))
         return redirect(url_for('ocr_verify', session_id=session_id))
 
 # 업로드된 파일 제공
@@ -2099,7 +1643,7 @@ def download_template(template_name):
     """템플릿 다운로드"""
     try:
         if template_name not in TEMPLATES:
-            flash('존재하지 않는 템플릿입니다.' if session.get('language') == 'ko' else 'Template not found.', 'danger')
+            flash_msg('template_not_found', 'danger')
             return redirect(url_for('template_analysis'))
         
         template_info = TEMPLATES[template_name]
@@ -2114,7 +1658,7 @@ def download_template(template_name):
     
     except Exception as e:
         print(f"템플릿 다운로드 오류: {str(e)}")
-        flash('템플릿 다운로드 중 오류가 발생했습니다.' if session.get('language') == 'ko' else 'Error downloading template.', 'danger')
+        flash_msg('template_download_error', 'danger')
         return redirect(url_for('template_analysis'))
 
 
@@ -2125,36 +1669,31 @@ def template_analyze():
     try:
         # 파일 확인
         if 'file' not in request.files:
-            flash('파일이 없습니다.' if session.get('language') == 'ko' else 'No file uploaded.', 'danger')
+            flash_msg('no_file_uploaded', 'danger')
             return redirect(url_for('template_analysis'))
         
         file = request.files['file']
         template_type = request.form.get('template_type')
         
         if not file.filename:
-            flash('파일이 선택되지 않았습니다.' if session.get('language') == 'ko' else 'No file selected.', 'danger')
+            flash_msg('no_file_selected', 'danger')
             return redirect(url_for('template_analysis'))
         
         if not template_type or template_type not in TEMPLATES:
-            flash('템플릿 유형을 선택하세요.' if session.get('language') == 'ko' else 'Select template type.', 'danger')
+            flash_msg('template_type_required', 'danger')
             return redirect(url_for('template_analysis'))
         
         # 파일 확장자 확인
         if not file.filename.endswith('.csv'):
-            flash('CSV 파일만 업로드 가능합니다.' if session.get('language') == 'ko' else 'Only CSV files allowed.', 'danger')
+            flash_msg('csv_only', 'danger')
             return redirect(url_for('template_analysis'))
         
         # 파일 저장
-        filename = secure_filename(file.filename)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        unique_filename = f"template_{template_type}_{timestamp}_{filename}"
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(file_path)
-        
+        unique_filename, file_path, _ = save_upload(file, ['template', template_type])
+
         print(f"✅ 템플릿 파일 저장: {file_path}")
-        
-        # 데이터 읽기
-        df = pd.read_csv(file_path)
+
+        df = read_dataframe(file_path)
         
         print(f"✅ 데이터 로드: {df.shape}")
         print(f"컬럼: {df.columns.tolist()}")
@@ -2167,38 +1706,22 @@ def template_analyze():
             template_info = TEMPLATES[template_type]
             dataset_name = f"{template_info['name_ko']} - {datetime.now().strftime('%Y-%m-%d')}"
 
-            dataset = Dataset(
-                user_id=current_user.id,
+            dataset = create_dataset_from_dataframe(
+                df,
                 name=dataset_name,
+                description=f"Template: {template_type}",
                 filename=unique_filename,
                 file_path=file_path,
-                description=f"Template: {template_type}",
-                row_count=len(df),
-                column_count=len(df.columns),
-                columns=df.columns.tolist(),
+                sanitize=True,
                 is_template=True
             )
-            db.session.add(dataset)
-            db.session.flush()
-
-            import math
-            for _, row in df.iterrows():
-                clean = {}
-                for k, v in row.to_dict().items():
-                    if hasattr(v, 'item'):
-                        v = v.item()
-                    if isinstance(v, float) and math.isnan(v):
-                        v = None
-                    clean[k] = v
-                db.session.add(DataRecord(dataset_id=dataset.id, data=clean))
-
             db.session.commit()
             print(f"✅ 데이터셋 저장: {dataset.id} ({len(df)}행)")
 
         if auto_analysis:
             return redirect(url_for('view_template_analysis', dataset_id=dataset.id))
         else:
-            flash('파일이 성공적으로 업로드되었습니다.' if session.get('language') == 'ko' else 'File uploaded successfully.', 'success')
+            flash_msg('file_uploaded', 'success')
             return redirect(url_for('template_analysis'))
     
     except Exception as e:
@@ -2206,7 +1729,7 @@ def template_analyze():
         import traceback
         traceback.print_exc()
         
-        flash(f'오류가 발생했습니다: {str(e)}' if session.get('language') == 'ko' else f'Error occurred: {str(e)}', 'danger')
+        flash_msg('generic_error', 'danger', error=str(e))
         return redirect(url_for('template_analysis'))
 
 ####################
@@ -2221,12 +1744,12 @@ def examples():
 def example_view(template_type):
     """템플릿별 예시 분석 페이지 (샘플 CSV 직접 렌더링)"""
     if template_type not in TEMPLATES:
-        flash('잘못된 템플릿 유형입니다.' if session.get('language') == 'ko' else 'Invalid template type.', 'danger')
+        flash_msg('invalid_template_type', 'danger')
         return redirect(url_for('examples'))
 
     sample_file = os.path.join(TEMPLATE_FOLDER, TEMPLATES[template_type]['filename'])
     if not os.path.exists(sample_file):
-        flash('샘플 파일을 찾을 수 없습니다.' if session.get('language') == 'ko' else 'Sample file not found.', 'danger')
+        flash_msg('sample_not_found', 'danger')
         return redirect(url_for('examples'))
 
     df = pd.read_csv(sample_file)
