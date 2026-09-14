@@ -506,6 +506,13 @@ def generate_chart():
             
             elif chart_type == 'bar':
                 print(f"\n바 차트 생성 중...")
+                # 같은 카테고리가 여러 행에 걸쳐 있으면 합계로 집계 (누적 막대 대신 하나의 막대)
+                if (not is_x_date and not is_y_date
+                        and pd.api.types.is_numeric_dtype(plot_df[y_column])
+                        and plot_df[x_column].duplicated().any()):
+                    plot_df = (plot_df.groupby(x_column, as_index=False)[y_column]
+                               .sum()
+                               .sort_values(y_column, ascending=False))
                 fig = px.bar(plot_df, x=x_column, y=y_column, 
                            title=get_message(f'{x_column}별 {y_column}', f'{y_column} by {x_column}'))
                 # Y축 설정 - 날짜 타입 고려
@@ -572,125 +579,15 @@ def generate_chart():
                 showlegend=True,
                 height=500,
                 margin=dict(l=70, r=50, t=80, b=70),
-                xaxis=dict(fixedrange=False),
-                yaxis=dict(fixedrange=False)
+                xaxis=dict(fixedrange=False, gridcolor='#eef1f6', layer='below traces'),
+                yaxis=dict(fixedrange=False, gridcolor='#eef1f6', layer='below traces'),
+                plot_bgcolor='rgba(0,0,0,0)',
+                paper_bgcolor='rgba(0,0,0,0)'
             )
             
-            # 생성된 차트의 데이터 확인
-            print(f"\n생성된 차트 정보:")
-            print(f"X축 데이터 포인트 수: {len(fig.data[0].x) if hasattr(fig.data[0], 'x') else 'N/A'}")
-            if hasattr(fig.data[0], 'y') and fig.data[0].y is not None:
-                print(f"Y축 데이터 포인트 수: {len(fig.data[0].y)}")
-                y_values = list(fig.data[0].y)
-                print(f"Y축 값 범위: {min(y_values)} ~ {max(y_values)}")
+            # Plotly 자체 직렬화 사용 (프런트엔드 plotly.js 3.x가 base64 배열을 그대로 처리)
+            graphJSON = fig.to_json()
 
-            
-            print("✅ 차트 생성 성공 / Chart created successfully\n")
-            
-            # PlotlyJSONEncoder를 사용하면 바이너리 인코딩됨
-            # 대신 to_plotly_json()을 사용하거나 수동으로 변환
-            
-            # 방법 1: fig를 dict로 변환 후 x, y, labels, values를 명시적으로 리스트로 변환
-            fig_dict = fig.to_dict()
-            
-            # 모든 trace의 x, y, labels, values 데이터를 Python list로 강제 변환
-            for trace in fig_dict.get('data', []):
-                # X축 데이터 처리
-                if 'x' in trace:
-                    x_data = trace['x']
-                    # dict 형태의 바이너리 인코딩 체크
-                    if isinstance(x_data, dict) and 'dtype' in x_data:
-                        # 이미 바이너리로 인코딩된 경우 - 원본에서 가져오기
-                        if df[x_column].dtype == 'datetime64[ns]':
-                            # 날짜는 문자열로 변환 (타임스탬프가 아닌 ISO 형식)
-                            trace['x'] = df[x_column].dt.strftime('%Y-%m-%d').tolist()
-                            print(f"✅ X축 날짜를 문자열로 변환")
-                        else:
-                            trace['x'] = df[x_column].tolist()
-                    elif hasattr(x_data, 'tolist'):
-                        # numpy array나 pandas Series
-                        # datetime인 경우 문자열로 변환
-                        if df[x_column].dtype == 'datetime64[ns]':
-                            trace['x'] = df[x_column].dt.strftime('%Y-%m-%d').tolist()
-                            print(f"✅ X축 날짜를 문자열로 변환")
-                        else:
-                            trace['x'] = x_data.tolist()
-                    elif not isinstance(x_data, list):
-                        # 기타 iterable
-                        trace['x'] = list(x_data)
-                
-                # Y축 데이터 처리
-                if 'y' in trace:
-                    y_data = trace['y']
-                    # dict 형태의 바이너리 인코딩 체크
-                    if isinstance(y_data, dict) and 'dtype' in y_data:
-                        # 이미 바이너리로 인코딩된 경우 - 원본에서 가져오기
-                        if df[y_column].dtype == 'datetime64[ns]':
-                            # 날짜는 문자열로 변환 (타임스탬프가 아닌 ISO 형식)
-                            trace['y'] = df[y_column].dt.strftime('%Y-%m-%d').tolist()
-                            print(f"✅ Y축 날짜를 문자열로 변환")
-                        else:
-                            trace['y'] = df[y_column].tolist()
-                        print(f"⚠️ Y축 바이너리 인코딩 감지 → 리스트로 변환")
-                        print(f"변환된 Y 데이터 (처음 5개): {trace['y'][:5]}")
-                    elif hasattr(y_data, 'tolist'):
-                        # numpy array나 pandas Series
-                        # datetime인 경우 문자열로 변환
-                        if df[y_column].dtype == 'datetime64[ns]':
-                            trace['y'] = df[y_column].dt.strftime('%Y-%m-%d').tolist()
-                            print(f"✅ Y축 날짜를 문자열로 변환")
-                        else:
-                            trace['y'] = y_data.tolist()
-                    elif not isinstance(y_data, list):
-                        # 기타 iterable
-                        trace['y'] = list(y_data)
-                
-                # 파이 차트용 labels 처리
-                if 'labels' in trace:
-                    labels_data = trace['labels']
-                    if hasattr(labels_data, 'tolist'):
-                        trace['labels'] = labels_data.tolist()
-                        print(f"✅ 파이 차트 labels를 리스트로 변환")
-                    elif not isinstance(labels_data, list):
-                        trace['labels'] = list(labels_data)
-                
-                # 파이 차트용 values 처리
-                if 'values' in trace:
-                    values_data = trace['values']
-                    if hasattr(values_data, 'tolist'):
-                        trace['values'] = values_data.tolist()
-                        print(f"✅ 파이 차트 values를 리스트로 변환")
-                    elif not isinstance(values_data, list):
-                        trace['values'] = list(values_data)
-
-            
-            # 일반 json.dumps 사용 (PlotlyJSONEncoder 없이)
-            graphJSON = json.dumps(fig_dict)
-            
-            # JSON 확인 (디버깅)
-            print(f"\n📊 생성된 JSON 정보:")
-            print(f"JSON 길이: {len(graphJSON)} 바이트")
-            
-            # X 데이터 부분 확인
-            if '"x":' in graphJSON:
-                x_start = graphJSON.find('"x":')
-                x_sample = graphJSON[x_start:x_start+300]
-                print(f"X 데이터 샘플: {x_sample[:150]}...")
-                if any(ts in x_sample for ts in ['1704', '1705', '1706']):
-                    print("⚠️ 경고: X축이 여전히 타임스탬프 숫자입니다!")
-                elif '"2024-' in x_sample or '"2023-' in x_sample:
-                    print("✅ 확인: X축이 날짜 문자열 형식입니다!")
-            
-            # Y 데이터 부분 확인
-            if '"y":' in graphJSON:
-                y_start = graphJSON.find('"y":')
-                y_sample = graphJSON[y_start:y_start+200]
-                print(f"Y 데이터 샘플: {y_sample}")
-                if '"dtype"' in y_sample or '"bdata"' in y_sample:
-                    print("❌ 경고: Y축이 여전히 바이너리 인코딩입니다!")
-                else:
-                    print("✅ 확인: Y축이 순수 JSON 배열 형식입니다!")
-            
             return jsonify({'chart': graphJSON})
         
         except Exception as plot_error:

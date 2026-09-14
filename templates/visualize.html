@@ -28,15 +28,15 @@
             </div>
 
             <!-- Chart Settings Card -->
-            <div class="card mb-4 shadow-sm border-0">
-                <div class="card-header bg-primary text-white py-3">
+            <div class="card mb-4">
+                <div class="card-header py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            <i class="bi bi-sliders"></i>
+                            <i class="bi bi-sliders text-primary"></i>
                             {% if current_language == 'ko' %}차트 설정{% else %}Chart Settings{% endif %}
                         </h5>
                         <!-- Generate Chart Button (moved here) -->
-                        <button type="button" id="generateBtn" class="btn btn-success">
+                        <button type="button" id="generateBtn" class="btn btn-primary">
                             <i class="bi bi-play-circle"></i>
                             {% if current_language == 'ko' %}차트 생성{% else %}Generate Chart{% endif %}
                         </button>
@@ -143,10 +143,10 @@
             </div>
 
             <!-- Chart Display Area -->
-            <div id="chartContainer" class="card shadow-sm border-0 mb-4" style="display: none;">
-                <div class="card-header bg-success text-white py-3">
+            <div id="chartContainer" class="card mb-4" style="display: none;">
+                <div class="card-header py-3">
                     <h5 class="mb-0">
-                        <i class="bi bi-graph-up"></i>
+                        <i class="bi bi-graph-up text-primary"></i>
                         {% if current_language == 'ko' %}생성된 차트{% else %}Generated Chart{% endif %}
                     </h5>
                 </div>
@@ -164,7 +164,7 @@
     </div>
 </div>
 
-<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
 <script>
     const datasetId = {{ dataset.id }};
     const currentLanguage = '{{ current_language }}';
