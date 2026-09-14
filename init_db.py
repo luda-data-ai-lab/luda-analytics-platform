@@ -11,6 +11,7 @@ from models import User, Dataset, DataRecord, DataView
 from werkzeug.security import generate_password_hash
 import pandas as pd
 import os
+import secrets
 
 def init_database():
     """데이터베이스 초기화"""
@@ -34,7 +35,12 @@ def init_database():
         print("- data_views")
 
 def create_sample_user():
-    """샘플 사용자 생성"""
+    """샘플 사용자 생성 (개발 환경 전용)"""
+    if app.config.get('IS_PRODUCTION'):
+        print("❌ 프로덕션 환경에서는 샘플 사용자를 생성할 수 없습니다.")
+        print("❌ Refusing to create a sample user in production.")
+        return
+
     with app.app_context():
         # 기존 샘플 사용자 확인
         existing_user = User.query.filter_by(email='test@example.com').first()
@@ -43,12 +49,13 @@ def create_sample_user():
             print("⚠️  Sample user already exists.")
             return
         
-        # 샘플 사용자 생성
+        # 샘플 사용자 생성 (비밀번호는 환경변수 또는 랜덤 생성)
+        password = os.environ.get('SAMPLE_USER_PASSWORD') or secrets.token_urlsafe(16)
         sample_user = User(
             email='test@example.com',
             name='테스트 사용자 / Test User'
         )
-        sample_user.set_password('test1234')
+        sample_user.set_password(password)
         
         db.session.add(sample_user)
         db.session.commit()
@@ -57,7 +64,7 @@ def create_sample_user():
         print("✅ Sample user created successfully!")
         print("\n로그인 정보 / Login credentials:")
         print(f"   이메일 / Email: test@example.com")
-        print(f"   비밀번호 / Password: test1234")
+        print(f"   비밀번호 / Password: {password}")
 
 def create_sample_data():
     """샘플 데이터셋 4종 DB 삽입"""

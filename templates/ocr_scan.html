@@ -74,6 +74,7 @@
             <div class="card shadow-sm border-0">
                 <div class="card-body p-4">
                     <form id="ocrUploadForm" action="{{ url_for('ocr_upload') }}" method="POST" enctype="multipart/form-data">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <!-- 파일 업로드 -->
                         <div class="mb-4">
                             <label class="form-label fw-bold">

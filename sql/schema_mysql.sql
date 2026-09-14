@@ -72,10 +72,10 @@ CREATE TABLE IF NOT EXISTS data_views (
 -- 샘플 데이터 삽입 (Sample Data)
 -- ============================================================
 
--- 샘플 사용자 생성 (비밀번호: test1234)
--- Sample user creation (password: test1234)
-INSERT INTO users (email, password_hash, name) VALUES
-('test@example.com', 'scrypt:32768:8:1$OqXZYRHwfslbhCfx$c8a90c8c9c8e8a0e7b3f5e8e9a7c6e1f2d3b4a5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7', '테스트 사용자 / Test User');
+-- 샘플 사용자는 기본 비밀번호가 노출되므로 스키마에서 생성하지 않습니다.
+-- 필요하면 init_db.py 로 직접 생성하세요 (개발 환경 전용).
+-- Sample users are intentionally not created here: seeding a known password
+-- hash would ship default credentials. Use init_db.py in development instead.
 
 -- 테이블 확인
 SHOW TABLES;
