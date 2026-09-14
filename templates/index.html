@@ -9,8 +9,11 @@
 {% endblock %}
 
 {% block content %}
-<div class="px-4 py-5 my-5 text-center">
-    <i class="bi bi-graph-up-arrow display-4 text-primary"></i>
+<div class="hero px-4 py-5 text-center">
+    <span class="badge-soft d-inline-block mb-3">
+        <i class="bi bi-stars"></i>
+        {{ '엑셀 → 인사이트, 몇 분 만에' if current_language == 'ko' else 'Spreadsheet to insight in minutes' }}
+    </span>
     <h1 class="display-6 fw-bold">
         {{ '데이터 분석 플랫폼' if current_language == 'ko' else 'Data Analytics Platform' }}
     </h1>
@@ -28,16 +31,49 @@
             <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg px-4 gap-3">
                 {{ '시작하기' if current_language == 'ko' else 'Get Started' }}
             </a>
-            <a href="{{ url_for('login') }}" class="btn btn-outline-secondary btn-lg px-4">
+            <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg px-4">
                 {{ '로그인' if current_language == 'ko' else 'Login' }}
             </a>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="row g-3 justify-content-center mt-4">
+            <div class="col-6 col-md-3">
+                <div class="stat-tile text-start">
+                    <div class="stat-label"><i class="bi bi-filetype-csv"></i>{{ '지원 포맷' if current_language == 'ko' else 'Formats' }}</div>
+                    <div class="stat-value">CSV / XLSX</div>
+                    <div class="stat-meta">{{ '드래그 앤 드롭 업로드' if current_language == 'ko' else 'Drag & drop upload' }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-tile tile-success text-start">
+                    <div class="stat-label"><i class="bi bi-bar-chart-line"></i>{{ '차트 유형' if current_language == 'ko' else 'Chart types' }}</div>
+                    <div class="stat-value">8+</div>
+                    <div class="stat-meta">{{ '라인 · 바 · 파이 · 산점도' if current_language == 'ko' else 'Line, bar, pie, scatter' }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-tile tile-info text-start">
+                    <div class="stat-label"><i class="bi bi-magic"></i>{{ '템플릿 분석' if current_language == 'ko' else 'Templates' }}</div>
+                    <div class="stat-value">{{ '자동' if current_language == 'ko' else 'Auto' }}</div>
+                    <div class="stat-meta">{{ '매출 · 마케팅 · 고객 · 농작물' if current_language == 'ko' else 'Sales, marketing, customer, crop' }}</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="stat-tile tile-warning text-start">
+                    <div class="stat-label"><i class="bi bi-shield-check"></i>{{ '보안' if current_language == 'ko' else 'Security' }}</div>
+                    <div class="stat-value">CSRF</div>
+                    <div class="stat-meta">{{ '계정별 데이터 격리' if current_language == 'ko' else 'Per-account isolation' }}</div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- Features Section -->
 <div class="container px-4 py-5">
-    <h2 class="pb-2 border-bottom">
+    <h2 class="pb-2 border-bottom" id="features">
         {{ '주요 기능' if current_language == 'ko' else 'Key Features' }}
     </h2>
     <div class="row g-4 py-5 row-cols-1 row-cols-lg-3">
@@ -88,4 +124,22 @@
         </div>
     </div>
 </div>
+
+<style>
+.hero {
+    background:
+        radial-gradient(1200px 380px at 50% -140px, rgba(37, 99, 235, 0.14), transparent 70%),
+        linear-gradient(180deg, #ffffff 0%, var(--canvas) 100%);
+    border-bottom: 1px solid var(--border);
+}
+.hero .lead {
+    color: var(--text-muted);
+    font-size: 1rem;
+}
+.feature-icon {
+    width: 3rem;
+    height: 3rem;
+    border-radius: var(--radius-sm);
+}
+</style>
 {% endblock %}

@@ -5,27 +5,73 @@
 {% endblock %}
 
 {% block content %}
-<div class="container mt-4 mb-5">
+<div class="container-fluid px-lg-4 mt-4 mb-5">
     <div class="row">
         <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="page-header">
                 <div>
-                    <h2>
+                    <h2 class="page-title">
                         <i class="bi bi-grid"></i>
                         {% if current_language == 'ko' %}대시보드{% else %}Dashboard{% endif %}
                     </h2>
-                    <p class="text-muted mb-0">
+                    <p class="page-subtitle">
                         {% if current_language == 'ko' %}
-                            업로드된 데이터셋 관리
+                            업로드된 데이터셋을 관리하고 바로 분석을 시작하세요
                         {% else %}
-                            Manage your uploaded datasets
+                            Manage uploaded datasets and jump straight into analysis
                         {% endif %}
                     </p>
                 </div>
-                <a href="{{ url_for('upload') }}" class="btn btn-primary">
-                    <i class="bi bi-cloud-upload"></i>
-                    {% if current_language == 'ko' %}새 데이터 업로드{% else %}Upload New Data{% endif %}
-                </a>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('template_dashboard') }}" class="btn btn-outline-primary">
+                        <i class="bi bi-lightning-charge"></i>
+                        {% if current_language == 'ko' %}빠른 분석{% else %}Quick Analysis{% endif %}
+                    </a>
+                    <a href="{{ url_for('upload') }}" class="btn btn-primary">
+                        <i class="bi bi-cloud-upload"></i>
+                        {% if current_language == 'ko' %}새 데이터 업로드{% else %}Upload New Data{% endif %}
+                    </a>
+                </div>
+            </div>
+
+            <!-- 요약 지표 -->
+            {% set total_rows = datasets | map(attribute='row_count') | map('default', 0, true) | sum %}
+            {% set total_cols = datasets | map(attribute='column_count') | map('default', 0, true) | sum %}
+            <div class="row g-3 mb-4">
+                <div class="col-6 col-lg-3">
+                    <div class="stat-tile">
+                        <div class="stat-label"><i class="bi bi-collection"></i>{% if current_language == 'ko' %}데이터셋{% else %}Datasets{% endif %}</div>
+                        <div class="stat-value">{{ datasets|length }}</div>
+                        <div class="stat-meta">
+                            {% if view == 'company' %}{{ current_user.company }}{% else %}{% if current_language == 'ko' %}내 데이터{% else %}My data{% endif %}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="stat-tile tile-success">
+                        <div class="stat-label"><i class="bi bi-list-ol"></i>{% if current_language == 'ko' %}총 행 수{% else %}Total rows{% endif %}</div>
+                        <div class="stat-value">{{ "{:,}".format(total_rows or 0) }}</div>
+                        <div class="stat-meta">{% if current_language == 'ko' %}적재된 레코드{% else %}Stored records{% endif %}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="stat-tile tile-info">
+                        <div class="stat-label"><i class="bi bi-layout-three-columns"></i>{% if current_language == 'ko' %}총 컬럼 수{% else %}Total columns{% endif %}</div>
+                        <div class="stat-value">{{ "{:,}".format(total_cols or 0) }}</div>
+                        <div class="stat-meta">{% if current_language == 'ko' %}분석 가능 필드{% else %}Analyzable fields{% endif %}</div>
+                    </div>
+                </div>
+                <div class="col-6 col-lg-3">
+                    <div class="stat-tile tile-warning">
+                        <div class="stat-label"><i class="bi bi-clock-history"></i>{% if current_language == 'ko' %}최근 업로드{% else %}Last upload{% endif %}</div>
+                        <div class="stat-value">
+                            {% if datasets %}{{ datasets[0].uploaded_at.strftime('%m-%d') }}{% else %}—{% endif %}
+                        </div>
+                        <div class="stat-meta">
+                            {% if datasets %}{{ datasets[0].uploaded_at.strftime('%Y-%m-%d %H:%M') }}{% else %}{% if current_language == 'ko' %}기록 없음{% else %}No activity{% endif %}{% endif %}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- 내 데이터 / 회사 전체 탭 -->
@@ -52,7 +98,7 @@
             <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
                 {% for dataset in datasets %}
                 <div class="col">
-                    <div class="card h-100 shadow-sm border-0 hover-card">
+                    <div class="card h-100 data-card">
                         <div class="card-body d-flex flex-column">
                             <!-- 아이콘 -->
                             <div class="mb-3">
@@ -128,9 +174,9 @@
             </div>
             {% else %}
             <!-- 빈 상태 -->
-            <div class="text-center py-5 my-5">
-                <div class="mb-4">
-                    <i class="bi bi-inbox" style="font-size: 4rem; color: #dee2e6;"></i>
+            <div class="empty-state my-4">
+                <div class="mb-3">
+                    <i class="bi bi-inbox"></i>
                 </div>
                 <h3 class="text-muted mb-3">
                     {% if current_language == 'ko' %}
@@ -157,37 +203,12 @@
 </div>
 
 <style>
-/* 카드 호버 효과 */
-.hover-card {
-    transition: all 0.3s ease;
+.data-card .card-body {
+    padding: 1.25rem;
 }
 
-.hover-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 0.5rem 1rem rgba(0,0,0,0.15) !important;
-}
-
-/* 카드 내부 여백 조정 */
-.card-body {
-    padding: 1.5rem;
-}
-
-/* 아이콘 애니메이션 */
-.hover-card:hover .bi-file-earmark-spreadsheet {
-    transform: scale(1.1);
-    transition: transform 0.3s ease;
-}
-
-/* 버튼 간격 */
 .d-grid.gap-2 {
     gap: 0.5rem !important;
-}
-
-/* 반응형 조정 */
-@media (max-width: 768px) {
-    .row-cols-1 {
-        row-gap: 1.5rem !important;
-    }
 }
 </style>
 {% endblock %}
