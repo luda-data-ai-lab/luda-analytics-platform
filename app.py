@@ -73,18 +73,27 @@ def load_user(user_id):
         return None
 
 
-def _record_failure(failures, label, exc):
-    """분석 단계의 실패를 로그에 남기고 호출자에게 단계 이름을 전달한다."""
-    logger.exception("%s 생성 실패: %s", label, exc)
+# 분석 단계 이름 (로그용 영문, 사용자 표시용 한/영)
+STAGE_CHARTS = ('차트', 'Charts')
+STAGE_METRICS = ('지표', 'Metrics')
+STAGE_INSIGHTS = ('인사이트', 'Insights')
+
+
+def _record_failure(failures, stage, exc):
+    """분석 단계의 실패를 로그에 남기고 호출자에게 단계 이름을 전달한다.
+
+    요청 컨텍스트 밖에서도 호출될 수 있으므로 현지화는 flash 시점으로 미룬다.
+    """
+    logger.exception("%s 생성 실패: %s", stage[1], exc)
     if failures is not None:
-        failures.append(label)
+        failures.append(stage)
 
 
 def _flash_analysis_failures(failures):
     """실패한 단계 이름만 알린다 (예외 상세는 서버 로그에만 남긴다)."""
     if not failures:
         return
-    stages = ' / '.join(failures)
+    stages = ' / '.join(get_message(ko, en) for ko, en in failures)
     flash(get_message(
         f'일부 분석 결과를 생성하지 못했습니다. ({stages})',
         f'Some analysis results could not be generated. ({stages})'
@@ -1020,7 +1029,7 @@ def generate_template_charts(df, failures=None):
             _charts_generic(df, charts, common_layout)
 
     except Exception as exc:
-        _record_failure(failures, get_message('차트', 'Charts'), exc)
+        _record_failure(failures, STAGE_CHARTS, exc)
 
     return charts
 
@@ -1523,7 +1532,7 @@ def calculate_metrics(df, failures=None):
                 metrics['unique_products'] = df[col_seg].nunique()
 
     except Exception as exc:
-        _record_failure(failures, get_message('지표', 'Metrics'), exc)
+        _record_failure(failures, STAGE_METRICS, exc)
 
     return metrics
 
@@ -1543,7 +1552,7 @@ def generate_insights(df, failures=None):
         elif ttype == 'customer':
             insights.update(_insights_customer(df))
     except Exception as exc:
-        _record_failure(failures, get_message('인사이트', 'Insights'), exc)
+        _record_failure(failures, STAGE_INSIGHTS, exc)
     return insights
 
 
