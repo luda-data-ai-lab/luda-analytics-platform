@@ -2180,6 +2180,11 @@ def template_analyze():
         return redirect(url_for('template_analysis'))
 
 ####################
+@app.route('/manual')
+def manual():
+    """사용자 매뉴얼 (한국어/영문)"""
+    return render_template('manual.html')
+
 @app.route('/examples')
 @login_required
 def examples():

@@ -214,6 +214,10 @@ a {
     border-top: 1px solid var(--border);
 }
 
+.data-card .card-body {
+    padding: 1.25rem;
+}
+
 .data-card {
     transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
 }
@@ -293,6 +297,30 @@ a {
 
 .insight-placeholder {
     opacity: 0.65;
+}
+
+/* /visualize 의 단일 차트 영역 */
+#chart {
+    width: 100%;
+    height: 600px;
+}
+
+#chartContainer .card-body {
+    min-height: 600px;
+}
+
+.plotly {
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    #chart {
+        height: 500px;
+    }
+
+    #chartContainer .card-body {
+        min-height: 500px;
+    }
 }
 
 /* --------------------------------------------------------------- 버튼 */
@@ -438,6 +466,71 @@ a {
     font-size: 0.8rem;
     padding: 1rem 0;
     margin-top: auto;
+}
+
+.app-footer-link {
+    color: var(--primary-dark);
+    text-decoration: none;
+}
+
+.app-footer-link:hover {
+    text-decoration: underline;
+}
+
+/* ----------------------------------------------------------- 매뉴얼 */
+.manual-toc {
+    position: sticky;
+    top: 84px;
+}
+
+.manual-toc .list-group-item {
+    border: none;
+    border-left: 2px solid transparent;
+    font-size: 0.85rem;
+    padding: 0.45rem 1rem;
+    color: var(--text-muted);
+}
+
+.manual-toc .list-group-item:hover {
+    background: var(--primary-soft);
+    border-left-color: var(--primary);
+    color: var(--primary-dark);
+}
+
+.manual-section {
+    scroll-margin-top: 84px;
+}
+
+.manual-heading {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.manual-steps,
+.manual-list {
+    padding-left: 1.1rem;
+    margin-bottom: 0;
+}
+
+.manual-steps li,
+.manual-list li {
+    margin-bottom: 0.4rem;
+    line-height: 1.65;
+}
+
+.manual-callout {
+    margin-top: 1rem;
+    background: var(--primary-soft);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius-sm);
+    padding: 0.7rem 0.9rem;
+    font-size: 0.88rem;
+}
+
+.manual-callout i {
+    color: var(--primary-dark);
+    margin-right: 0.35rem;
 }
 
 /* --------------------------------------------------------- 스크롤바 */
