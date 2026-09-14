@@ -468,6 +468,71 @@ a {
     margin-top: auto;
 }
 
+.app-footer-link {
+    color: var(--primary-dark);
+    text-decoration: none;
+}
+
+.app-footer-link:hover {
+    text-decoration: underline;
+}
+
+/* ----------------------------------------------------------- 매뉴얼 */
+.manual-toc {
+    position: sticky;
+    top: 84px;
+}
+
+.manual-toc .list-group-item {
+    border: none;
+    border-left: 2px solid transparent;
+    font-size: 0.85rem;
+    padding: 0.45rem 1rem;
+    color: var(--text-muted);
+}
+
+.manual-toc .list-group-item:hover {
+    background: var(--primary-soft);
+    border-left-color: var(--primary);
+    color: var(--primary-dark);
+}
+
+.manual-section {
+    scroll-margin-top: 84px;
+}
+
+.manual-heading {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+}
+
+.manual-steps,
+.manual-list {
+    padding-left: 1.1rem;
+    margin-bottom: 0;
+}
+
+.manual-steps li,
+.manual-list li {
+    margin-bottom: 0.4rem;
+    line-height: 1.65;
+}
+
+.manual-callout {
+    margin-top: 1rem;
+    background: var(--primary-soft);
+    border-left: 3px solid var(--primary);
+    border-radius: var(--radius-sm);
+    padding: 0.7rem 0.9rem;
+    font-size: 0.88rem;
+}
+
+.manual-callout i {
+    color: var(--primary-dark);
+    margin-right: 0.35rem;
+}
+
 /* --------------------------------------------------------- 스크롤바 */
 ::-webkit-scrollbar {
     width: 10px;

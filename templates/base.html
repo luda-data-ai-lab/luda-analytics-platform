@@ -75,6 +75,12 @@
                         </a>
                     </li>
                     {% endif %}
+                    <li class="nav-item">
+                        <a class="nav-link {% if request.endpoint == 'manual' %}active{% endif %}" href="{{ url_for('manual') }}">
+                            <i class="bi bi-journal-text"></i>
+                            {% if current_language == 'ko' %}사용자 매뉴얼{% else %}User Manual{% endif %}
+                        </a>
+                    </li>
                 </ul>
                 <ul class="navbar-nav align-items-lg-center">
                     <!-- 언어 전환 -->
@@ -141,7 +147,12 @@
     <!-- 푸터 -->
     <footer class="app-footer">
         <div class="container-fluid px-lg-4 d-flex flex-wrap justify-content-between gap-2">
-            <span>&copy; 2024 LUDA Analytics Platform</span>
+            <span>
+                &copy; 2024 LUDA Analytics Platform
+                <a class="app-footer-link ms-2" href="{{ url_for('manual') }}">
+                    {% if current_language == 'ko' %}사용자 매뉴얼{% else %}User Manual{% endif %}
+                </a>
+            </span>
             <span>
                 {% if current_language == 'ko' %}데이터 업로드 · 시각화 · 자동 인사이트{% else %}Upload · Visualize · Automated insights{% endif %}
             </span>

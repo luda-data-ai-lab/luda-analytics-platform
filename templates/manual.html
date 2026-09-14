@@ -1,0 +1,291 @@
+{% extends "base.html" %}
+{% set ko = current_language == 'ko' %}
+
+{% block title %}{{ '사용자 매뉴얼' if ko else 'User Manual' }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-lg-4 mt-4">
+    <div class="page-header">
+        <h1 class="page-title">
+            <i class="bi bi-journal-text text-primary"></i>
+            {{ '사용자 매뉴얼' if ko else 'User Manual' }}
+        </h1>
+        <p class="page-subtitle">
+            {{ '데이터 업로드부터 자동 인사이트까지, LUDA 분석 플랫폼의 모든 기능을 단계별로 안내합니다.'
+               if ko else
+               'A step-by-step guide to every feature of the LUDA Analytics Platform, from upload to automated insights.' }}
+        </p>
+    </div>
+
+    <div class="row g-4">
+        <!-- 목차 -->
+        <div class="col-lg-3">
+            <div class="card manual-toc">
+                <div class="card-header">{{ '목차' if ko else 'Contents' }}</div>
+                <div class="list-group list-group-flush">
+                    <a class="list-group-item list-group-item-action" href="#start">1. {{ '시작하기' if ko else 'Getting started' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#upload">2. {{ '데이터 업로드' if ko else 'Uploading data' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#dashboard">3. {{ '대시보드' if ko else 'Dashboard' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#visualize">4. {{ '차트 만들기' if ko else 'Building charts' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#template">5. {{ '템플릿 분석' if ko else 'Template analysis' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#examples">6. {{ '예시 보기' if ko else 'Examples' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#ocr">7. {{ '문서 스캔(OCR)' if ko else 'Document scan (OCR)' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#language">8. {{ '언어 전환' if ko else 'Language switching' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#security">9. {{ '보안과 데이터 보호' if ko else 'Security and data protection' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#faq">10. {{ '문제 해결 / FAQ' if ko else 'Troubleshooting / FAQ' }}</a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 본문 -->
+        <div class="col-lg-9">
+            <!-- 1 -->
+            <section id="start" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">1. {{ '시작하기' if ko else 'Getting started' }}</h2>
+                    <p>
+                        {{ '계정을 만들고 로그인하면 본인만 접근할 수 있는 작업 공간이 생성됩니다. 업로드한 파일과 분석 결과는 계정별로 분리되어 저장됩니다.'
+                           if ko else
+                           'Create an account and sign in to get a workspace only you can access. Uploaded files and analysis results are stored separately per account.' }}
+                    </p>
+                    <ol class="manual-steps">
+                        <li>{{ '상단 오른쪽 [회원가입]을 눌러 이름 · 이메일 · 비밀번호를 입력합니다. 비밀번호는 최소 8자입니다.'
+                               if ko else
+                               'Click [Register] at the top right and enter your name, email and password. Passwords must be at least 8 characters.' }}</li>
+                        <li>{{ '가입 후 [로그인]에서 이메일과 비밀번호로 로그인합니다.'
+                               if ko else
+                               'Then sign in from [Login] with your email and password.' }}</li>
+                        <li>{{ '로그인하면 대시보드로 이동하며, 상단 메뉴에서 업로드 · 템플릿 분석 · 예시 · 문서 스캔을 이용할 수 있습니다.'
+                               if ko else
+                               'After signing in you land on the dashboard; the top menu gives access to Upload, Template Analysis, Examples and Scan.' }}</li>
+                    </ol>
+                </div>
+            </section>
+
+            <!-- 2 -->
+            <section id="upload" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">2. {{ '데이터 업로드' if ko else 'Uploading data' }}</h2>
+                    <p>
+                        {{ '상단 메뉴의 [업로드]에서 CSV 또는 Excel 파일을 올립니다. 첫 번째 행은 반드시 열 이름(헤더)이어야 합니다.'
+                           if ko else
+                           'Use [Upload] in the top menu to add a CSV or Excel file. The first row must contain the column names (header).' }}
+                    </p>
+                    <ul class="manual-list">
+                        <li><strong>{{ '지원 형식' if ko else 'Supported formats' }}:</strong> .csv, .xlsx, .xls</li>
+                        <li><strong>{{ '권장 구조' if ko else 'Recommended structure' }}:</strong>
+                            {{ '한 행 = 한 건의 기록, 날짜·수치 열은 빈 칸 없이 일관된 형식으로 입력'
+                               if ko else
+                               'one row per record; keep date and numeric columns consistently formatted and free of blanks' }}</li>
+                        <li><strong>{{ '업로드 후' if ko else 'After upload' }}:</strong>
+                            {{ '파일은 데이터셋으로 저장되고 행 수 · 열 수가 자동으로 집계됩니다.'
+                               if ko else
+                               'the file is stored as a dataset and its row and column counts are computed automatically.' }}</li>
+                    </ul>
+                    <div class="manual-callout">
+                        <i class="bi bi-lightbulb"></i>
+                        {{ '숫자 열에 쉼표(1,000)나 단위(원, %)가 섞여 있으면 문자로 인식되어 차트에 사용할 수 없습니다. 숫자만 남겨 주세요.'
+                           if ko else
+                           'If numeric columns contain commas (1,000) or units (%, USD), they are read as text and cannot be charted. Keep digits only.' }}
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3 -->
+            <section id="dashboard" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">3. {{ '대시보드' if ko else 'Dashboard' }}</h2>
+                    <p>
+                        {{ '대시보드는 내 데이터셋 현황을 한눈에 보여 줍니다. 상단 KPI 타일에서 데이터셋 수, 전체 행 수, 전체 열 수, 최근 업로드 시각을 확인할 수 있습니다.'
+                           if ko else
+                           'The dashboard summarizes your datasets. The KPI tiles show dataset count, total rows, total columns and the most recent upload time.' }}
+                    </p>
+                    <ul class="manual-list">
+                        <li><strong>{{ '데이터 보기' if ko else 'View data' }}:</strong>
+                            {{ '표 형태로 업로드한 내용을 확인합니다.' if ko else 'inspect the uploaded rows in a table.' }}</li>
+                        <li><strong>{{ '시각화' if ko else 'Visualize' }}:</strong>
+                            {{ '축을 직접 골라 차트를 만듭니다.' if ko else 'pick the axes yourself and build a chart.' }}</li>
+                        <li><strong>{{ '삭제' if ko else 'Delete' }}:</strong>
+                            {{ '데이터셋과 업로드 파일을 함께 삭제합니다. 되돌릴 수 없습니다.'
+                               if ko else 'removes the dataset together with its uploaded file. This cannot be undone.' }}</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- 4 -->
+            <section id="visualize" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">4. {{ '차트 만들기' if ko else 'Building charts' }}</h2>
+                    <p>
+                        {{ '데이터셋의 [시각화]에서 X축 · Y축과 차트 종류를 고른 뒤 [차트 생성]을 누르면 대화형 차트가 그려집니다. 차트는 확대 · 이동 · 이미지 저장이 가능합니다.'
+                           if ko else
+                           'Open [Visualize] on a dataset, choose the X axis, Y axis and chart type, then press [Generate chart] to render an interactive chart you can zoom, pan and download as an image.' }}
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr>
+                                    <th>{{ '차트' if ko else 'Chart' }}</th>
+                                    <th>{{ '용도' if ko else 'Use it for' }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{{ '선형' if ko else 'Line' }}</td>
+                                    <td>{{ '시간에 따른 추세 (X축에 날짜)' if ko else 'Trends over time (dates on X)' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ '막대' if ko else 'Bar' }}</td>
+                                    <td>{{ '항목별 비교. 같은 항목이 여러 행에 있으면 자동으로 합계 처리됩니다.'
+                                           if ko else 'Comparing categories. Repeated categories are summed automatically.' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ '산점도' if ko else 'Scatter' }}</td>
+                                    <td>{{ '두 수치 열 사이의 상관관계' if ko else 'Correlation between two numeric columns' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ '파이' if ko else 'Pie' }}</td>
+                                    <td>{{ '구성비 (항목 수가 적을 때)' if ko else 'Composition, when there are few categories' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ '히스토그램' if ko else 'Histogram' }}</td>
+                                    <td>{{ '한 수치 열의 분포 (Y축 선택 불필요)' if ko else 'Distribution of one numeric column (no Y axis needed)' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 5 -->
+            <section id="template" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">5. {{ '템플릿 분석' if ko else 'Template analysis' }}</h2>
+                    <p>
+                        {{ '템플릿 분석은 데이터 유형(매출, 작물 생산량, 마케팅, 고객 등)을 고르면 KPI와 차트, 문장 형태의 인사이트를 자동으로 만들어 줍니다.'
+                           if ko else
+                           'Template analysis takes a data type (sales, crop yield, marketing, customer, …) and automatically produces KPIs, charts and written insights.' }}
+                    </p>
+                    <ul class="manual-list">
+                        <li><strong>{{ '빠른 분석' if ko else 'Quick Analysis' }}:</strong>
+                            {{ '표준 템플릿 양식을 내려받아 채운 뒤 올리면 즉시 분석됩니다.'
+                               if ko else 'download a standard template, fill it in, upload it and get the analysis immediately.' }}</li>
+                        <li><strong>{{ '전문 분석' if ko else 'Professional Analysis' }}:</strong>
+                            {{ '보유한 파일을 올리고 데이터 유형을 지정해 분석합니다. [분석 결과 저장]을 켜면 대시보드에도 데이터셋으로 남습니다.'
+                               if ko else 'upload your own file, pick the data type, and optionally tick “save dataset” to keep it on the dashboard.' }}</li>
+                    </ul>
+                    <p class="mb-0">
+                        {{ '매출 데이터의 경우 일별 매출, 지역별 매출, 제품 비중, 카테고리별 매출, 수량 대비 매출, 일별 수량 등 6개 차트가 생성됩니다.'
+                           if ko else
+                           'For sales data you get six charts: daily sales, sales by region, product mix, sales by category, quantity vs. revenue and daily quantity.' }}
+                    </p>
+                </div>
+            </section>
+
+            <!-- 6 -->
+            <section id="examples" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">6. {{ '예시 보기' if ko else 'Examples' }}</h2>
+                    <p class="mb-0">
+                        {{ '자신의 데이터를 올리기 전에 [예시 보기]에서 샘플 데이터로 만든 분석 결과를 미리 확인할 수 있습니다. 어떤 열을 준비해야 하는지 파악하는 데 유용합니다.'
+                           if ko else
+                           'Before uploading your own data, open [Examples] to preview analyses built from sample data — a quick way to see which columns you should prepare.' }}
+                    </p>
+                </div>
+            </section>
+
+            <!-- 7 -->
+            <section id="ocr" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">7. {{ '문서 스캔(OCR)' if ko else 'Document scan (OCR)' }}</h2>
+                    <p class="mb-0">
+                        {{ '종이 표나 PDF만 있는 경우 [문서 스캔]에서 이미지를 올리면 표를 인식해 데이터로 변환합니다. 인식 결과는 저장 전에 화면에서 직접 수정할 수 있으므로, 숫자와 열 이름을 확인한 뒤 저장하세요.'
+                           if ko else
+                           'If your table only exists on paper or in a PDF, upload the image under [Scan] to extract it into data. The recognized result can be edited on screen before saving, so check the numbers and column names first.' }}
+                    </p>
+                </div>
+            </section>
+
+            <!-- 8 -->
+            <section id="language" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">8. {{ '언어 전환' if ko else 'Language switching' }}</h2>
+                    <p class="mb-0">
+                        {{ '상단 오른쪽 지구본 메뉴에서 한국어와 English를 전환할 수 있습니다. 보고 있던 페이지를 그대로 유지한 채 화면 문구와 차트 제목이 함께 바뀝니다.'
+                           if ko else
+                           'Use the globe menu at the top right to switch between Korean and English. You stay on the same page, and both the interface text and the chart titles change.' }}
+                    </p>
+                </div>
+            </section>
+
+            <!-- 9 -->
+            <section id="security" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">9. {{ '보안과 데이터 보호' if ko else 'Security and data protection' }}</h2>
+                    <ul class="manual-list mb-0">
+                        <li>{{ '데이터셋과 업로드 파일은 소유자만 조회 · 다운로드할 수 있습니다.'
+                               if ko else 'Datasets and uploaded files can only be viewed or downloaded by their owner.' }}</li>
+                        <li>{{ '비밀번호는 해시로 저장되며 원문은 보관하지 않습니다.'
+                               if ko else 'Passwords are stored hashed; the original is never kept.' }}</li>
+                        <li>{{ '업로드 · 삭제 · 차트 생성 등 모든 변경 요청은 CSRF 토큰으로 보호됩니다.'
+                               if ko else 'Every state-changing request (upload, delete, chart generation) is protected by a CSRF token.' }}</li>
+                        <li>{{ '공용 PC에서는 사용 후 반드시 로그아웃하세요.'
+                               if ko else 'Always sign out when using a shared computer.' }}</li>
+                    </ul>
+                </div>
+            </section>
+
+            <!-- 10 -->
+            <section id="faq" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">10. {{ '문제 해결 / FAQ' if ko else 'Troubleshooting / FAQ' }}</h2>
+                    <div class="accordion" id="manualFaq">
+                        <div class="accordion-item">
+                            <h3 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq1">
+                                    {{ '차트가 비어 있거나 축 숫자가 이상합니다.' if ko else 'The chart is empty or the axis numbers look wrong.' }}
+                                </button>
+                            </h3>
+                            <div id="faq1" class="accordion-collapse collapse" data-bs-parent="#manualFaq">
+                                <div class="accordion-body">
+                                    {{ 'Y축에 숫자 열을 선택했는지 확인하세요. 쉼표나 단위가 섞인 열은 문자로 인식됩니다. 브라우저 캐시가 오래된 경우 새로고침(Ctrl+F5)도 도움이 됩니다.'
+                                       if ko else
+                                       'Make sure the Y axis is a numeric column — values with commas or units are treated as text. A hard refresh (Ctrl+F5) also helps if the browser cached an old page.' }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h3 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq2">
+                                    {{ '업로드가 실패합니다.' if ko else 'The upload fails.' }}
+                                </button>
+                            </h3>
+                            <div id="faq2" class="accordion-collapse collapse" data-bs-parent="#manualFaq">
+                                <div class="accordion-body">
+                                    {{ '파일 형식(.csv / .xlsx / .xls)과 용량 제한을 확인하고, 첫 행에 열 이름이 있는지 확인하세요. 로그인이 만료된 경우 다시 로그인한 뒤 시도하세요.'
+                                       if ko else
+                                       'Check the file type (.csv / .xlsx / .xls) and size limit, and confirm the first row holds the column names. If your session expired, sign in again and retry.' }}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="accordion-item">
+                            <h3 class="accordion-header">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#faq3">
+                                    {{ '삭제한 데이터를 복구할 수 있나요?' if ko else 'Can I recover a deleted dataset?' }}
+                                </button>
+                            </h3>
+                            <div id="faq3" class="accordion-collapse collapse" data-bs-parent="#manualFaq">
+                                <div class="accordion-body">
+                                    {{ '삭제는 즉시 반영되며 복구할 수 없습니다. 원본 파일은 별도로 보관해 두시기 바랍니다.'
+                                       if ko else
+                                       'Deletion is immediate and cannot be undone, so keep a copy of your original file.' }}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>
+{% endblock %}
