@@ -8,9 +8,12 @@ from PIL import Image
 import pytesseract
 import pandas as pd
 from pdf2image import convert_from_path
+import logging
 import os
 import re
 import platform
+
+logger = logging.getLogger(__name__)
 
 # Windows: Tesseract 경로 자동 설정
 if platform.system() == 'Windows':
@@ -41,6 +44,12 @@ class OCRProcessor:
     def __init__(self):
         """OCR 프로세서 초기화"""
         self.temp_dir = None
+        # 단계별 실패 이유 — 모든 방식이 실패했을 때 호출자에게 전달하기 위해 보관한다.
+        self.failures = []
+
+    def _record_failure(self, step, exc):
+        logger.warning("OCR 단계 실패: %s", step, exc_info=True)
+        self.failures.append(f"{step}: {exc}")
         
     def preprocess_image(self, image_path):
         """
@@ -132,7 +141,7 @@ class OCRProcessor:
                     return df
                     
                 except Exception as e:
-                    print(f"⚠️ DataFrame 정리 중 오류: {e}")
+                    self._record_failure('img2table DataFrame 정리', e)
                     # 오류 발생 시 기본 컬럼명으로 재시도
                     df.columns = [f'Column_{i+1}' for i in range(len(df.columns))]
                     print(f"✅ 기본 컬럼명으로 DataFrame 생성: {df.shape}")
@@ -142,7 +151,7 @@ class OCRProcessor:
                 return None
                 
         except Exception as e:
-            print(f"img2table 실패, 기본 방식 사용: {str(e)}")
+            self._record_failure('img2table 표 생성', e)
             return None
     
     def detect_table_structure(self, image_path):
@@ -269,7 +278,7 @@ class OCRProcessor:
                 print(f"✅ DataFrame 생성: {df.shape}")
                 return df
             except Exception as e:
-                print(f"⚠️ 헤더로 DataFrame 생성 실패, 기본 컬럼명 사용: {e}")
+                self._record_failure('셀 헤더 DataFrame 생성', e)
                 # 헤더 사용 실패 시 기본 컬럼명 사용
                 df = pd.DataFrame(normalized_rows[1:])
                 df.columns = [f'Column_{i+1}' for i in range(len(df.columns))]
@@ -345,7 +354,7 @@ class OCRProcessor:
                 return df
                 
             except Exception as e:
-                print(f"⚠️ 헤더로 DataFrame 생성 실패, 기본 컬럼명 사용: {e}")
+                self._record_failure('기본 OCR 헤더 DataFrame 생성', e)
                 # 헤더 사용 실패 시 모든 데이터를 포함하고 기본 컬럼명 사용
                 df = pd.DataFrame(normalized_data)
                 df.columns = [f'Column_{i+1}' for i in range(len(df.columns))]
@@ -353,9 +362,7 @@ class OCRProcessor:
                 return df
             
         except Exception as e:
-            print(f"기본 OCR 실패: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            self._record_failure('기본 OCR 표 생성', e)
             return pd.DataFrame()
     
     def process_document(self, file_path):
@@ -378,6 +385,7 @@ class OCRProcessor:
             'error': None,
             'method': None
         }
+        self.failures = []
         
         try:
             # 파일 확장자 확인
@@ -446,13 +454,13 @@ class OCRProcessor:
             
             if not result['success']:
                 result['error'] = "표 데이터를 추출할 수 없습니다"
-                print("❌ 모든 방법 실패")
-            
+                if self.failures:
+                    result['error'] += " (" + ' / '.join(self.failures) + ")"
+                logger.error("OCR 모든 방식 실패: %s (%s)", file_path, '; '.join(self.failures) or '상세 없음')
+
         except Exception as e:
             result['error'] = str(e)
-            print(f"❌ OCR 처리 오류: {str(e)}")
-            import traceback
-            traceback.print_exc()
+            logger.exception("OCR 처리 오류: %s", file_path)
         
         print(f"\n{'='*60}")
         print(f"OCR 처리 완료: {'성공' if result['success'] else '실패'}")

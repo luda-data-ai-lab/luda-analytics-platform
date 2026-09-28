@@ -55,6 +55,8 @@ def migrate_ocr():
             print("1. MySQL 서버가 실행 중인지 확인")
             print("2. DB 연결 정보가 올바른지 확인")
             print("3. 필요한 라이브러리가 설치되었는지 확인: pip install -r requirements.txt")
+            # 마이그레이션 실패를 종료 코드로 전달해야 스크립트/CI 가 실패를 감지할 수 있다.
+            raise
 
 if __name__ == '__main__':
     print("=" * 50)
