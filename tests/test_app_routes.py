@@ -4,6 +4,7 @@ import io
 import json
 import os
 
+import flask
 import pytest
 
 import app as app_module
@@ -616,3 +617,18 @@ def test_analytics_export_redirects_when_no_result(client, user, db_session):
 
     assert response.status_code == 302
     assert f'/analytics/{dataset.id}?' in response.headers['Location']
+
+
+def test_stat_value_filter_formats_small_numbers_and_booleans():
+    with app_module.app.test_request_context('/'):
+        assert app_module.stat_value(4.5648935e-05) == '4.56e-05'
+        assert app_module.stat_value(0.1032996896559482) == '0.1033'
+        assert app_module.stat_value(1234.5) == '1,234.5'
+        assert app_module.stat_value(True) == 'Significant'
+        assert app_module.stat_value(False) == 'Not significant'
+        assert app_module.stat_value("Welch's t-test") == "Welch's t-test"
+
+    with app_module.app.test_request_context('/'):
+        flask.session['language'] = 'ko'
+        assert app_module.stat_value(True) == '유의함'
+        assert app_module.stat_value(False) == '유의하지 않음'

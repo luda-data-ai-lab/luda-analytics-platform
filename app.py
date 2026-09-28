@@ -80,6 +80,21 @@ def insight_html(value):
     return Markup(safe)
 
 
+@app.template_filter('stat_value')
+def stat_value(value):
+    """지표 카드 표시용 서식 (아주 작은 값은 반올림으로 0 이 되지 않게 지수 표기)"""
+    if isinstance(value, bool):
+        return (get_message('유의함', 'Significant') if value
+                else get_message('유의하지 않음', 'Not significant'))
+    if isinstance(value, (int, float)):
+        if value != 0 and abs(value) < 0.01:
+            return f'{value:.2e}'
+        if abs(value) < 1:
+            return f'{value:.4f}'.rstrip('0').rstrip('.')
+        return f'{value:,.2f}'.rstrip('0').rstrip('.')
+    return value
+
+
 def is_safe_redirect_url(target):
     """같은 호스트로의 상대 경로만 리다이렉트 허용 (open redirect 방지)"""
     if not target:
@@ -2305,12 +2320,8 @@ def _run_analytics(df, columns, params):
                                   metric=params['metric'])
         if result:
             charts = _figures_json(result['figures'])
-            # 지표 카드는 읽힌 우선 — p 는 문자열로, 유의성은 문구로 넣는다
-            stats = {key: result[key] for key in ('test', 'difference', 'lift_pct')}
-            stats['p_value'] = _format_p_value(result['p_value'])
-            stats['significant'] = (get_message('유의함', 'Significant')
-                                    if result['significant']
-                                    else get_message('유의하지 않음', 'Not significant'))
+            stats = {key: result[key] for key in
+                     ('test', 'p_value', 'difference', 'lift_pct', 'significant')}
             stats['sample_sizes'] = ' / '.join(str(size) for size in result['sizes'])
             insights = _abtest_insights(result, params['value_col'])
             tables['abtest'] = {

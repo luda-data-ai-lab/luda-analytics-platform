@@ -50,7 +50,7 @@
             {% if value is not none %}
             <tr>
                 <th class="text-muted text-uppercase small pe-4">{{ key.replace('_', ' ') }}</th>
-                <td>{% if value is number %}{{ "{:,.2f}".format(value).rstrip('0').rstrip('.') }}{% else %}{{ value }}{% endif %}</td>
+                <td>{{ value | stat_value }}</td>
             </tr>
             {% endif %}
             {% endfor %}
