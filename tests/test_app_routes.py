@@ -421,3 +421,69 @@ def test_crop_example_renders(client, user):
     _login(client)
 
     assert client.get('/crop_example').status_code == 200
+
+
+def _timeseries_rows(count=18):
+    return [
+        {'Date': f'2023-{month % 12 + 1:02d}-01', 'Revenue': 100 + 10 * month,
+         'Cost': 50 + 4 * month, 'Region': '서울' if month % 2 else '부산'}
+        for month in range(count)
+    ]
+
+
+def test_advanced_analytics_renders_timeseries_tab(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_timeseries_rows())
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}?tab=timeseries&date_col=Date&value_col=Revenue')
+
+    body = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'chart_trend' in body and 'chart_change' in body
+
+
+def test_advanced_analytics_renders_outlier_and_correlation_tabs(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_timeseries_rows())
+    _login(client)
+
+    outlier = client.get(
+        f'/analytics/{dataset.id}?tab=outlier&value_col=Revenue&method=zscore&threshold=2'
+    )
+    correlation = client.get(f'/analytics/{dataset.id}?tab=correlation&target_col=Revenue')
+
+    assert 'chart_scatter' in outlier.get_data(as_text=True)
+    assert 'chart_heatmap' in correlation.get_data(as_text=True)
+
+
+def test_advanced_analytics_falls_back_for_invalid_params(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_timeseries_rows())
+    _login(client)
+
+    response = client.get(
+        f'/analytics/{dataset.id}?tab=unknown&value_col=없는컬럼&window=999&threshold=abc'
+    )
+
+    assert response.status_code == 200
+
+
+def test_advanced_analytics_denies_other_users(client, user, db_session):
+    other = User(email='analytics-other@example.com', name='타인')
+    other.set_password('pw')
+    db_session.session.add(other)
+    db_session.session.commit()
+    dataset = _make_dataset(db_session, other, rows=_timeseries_rows())
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}')
+
+    assert response.status_code == 302
+    assert '/dashboard' in response.headers['Location']
+
+
+def test_advanced_analytics_requires_login(client, user, db_session):
+    dataset = _make_dataset(db_session, user)
+
+    response = client.get(f'/analytics/{dataset.id}')
+
+    assert response.status_code == 302
+    assert '/login' in response.headers['Location']
