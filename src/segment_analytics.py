@@ -243,12 +243,16 @@ def cohort_analysis(df, customer_col, date_col, freq='M', max_periods=12):
                                if column > observable]] = np.nan
     labels = [str(value) for value in retention.index]
 
+    values = retention.to_numpy()
+    # 측정 불가 칸은 셀 라벨도 비워 둔다 ('NaN%' 가 찍히지 않도록)
+    cell_text = [['' if np.isnan(value) else f'{value:.0f}%' for value in row]
+                 for row in values]
     fig = go.Figure(go.Heatmap(
-        z=retention.to_numpy().round(1),
+        z=values.round(1),
         x=[f'+{int(column)}' for column in retention.columns],
         y=labels, colorscale='Blues', zmin=0, zmax=100,
-        text=retention.to_numpy().round(0), texttemplate='%{text}%',
-        colorbar=dict(title='%')
+        text=cell_text, texttemplate='%{text}',
+        hoverongaps=False, colorbar=dict(title='%')
     ))
     _layout(fig, '코호트 리텐션 / Cohort retention', height=max(360, 60 * len(labels)),
             xaxis_title='경과 기간 / Periods since first activity')

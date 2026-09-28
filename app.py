@@ -2125,6 +2125,13 @@ def _cohort_insights(result):
     return lines
 
 
+def _format_p_value(value):
+    """p-value 를 반올림으로 0 이 되지 않게 표기한다."""
+    if value < 0.0001:
+        return f'{value:.2e}'
+    return f'{value:.4f}'
+
+
 def _abtest_insights(result, value_col):
     first, second = result['groups']
     value_a, value_b = result['values']
@@ -2146,9 +2153,9 @@ def _abtest_insights(result, value_col):
                if result['significant']
                else get_message('통계적으로 유의하지 않습니다', 'not statistically significant'))
     lines.append(get_message(
-        f'{result["test"]} 결과 p = <strong>{result["p_value"]:.4f}</strong> → '
+        f'{result["test"]} 결과 p = <strong>{_format_p_value(result["p_value"])}</strong> → '
         f'유의수준 {result["alpha"]:.2f}에서 {verdict}.',
-        f'{result["test"]}: p = <strong>{result["p_value"]:.4f}</strong> → {verdict} '
+        f'{result["test"]}: p = <strong>{_format_p_value(result["p_value"])}</strong> → {verdict} '
         f'at α = {result["alpha"]:.2f}.'
     ))
     low, high = result['confidence_interval']
@@ -2298,8 +2305,12 @@ def _run_analytics(df, columns, params):
                                   metric=params['metric'])
         if result:
             charts = _figures_json(result['figures'])
-            stats = {key: result[key] for key in
-                     ('test', 'p_value', 'difference', 'lift_pct', 'significant')}
+            # 지표 카드는 읽힌 우선 — p 는 문자열로, 유의성은 문구로 넣는다
+            stats = {key: result[key] for key in ('test', 'difference', 'lift_pct')}
+            stats['p_value'] = _format_p_value(result['p_value'])
+            stats['significant'] = (get_message('유의함', 'Significant')
+                                    if result['significant']
+                                    else get_message('유의하지 않음', 'Not significant'))
             stats['sample_sizes'] = ' / '.join(str(size) for size in result['sizes'])
             insights = _abtest_insights(result, params['value_col'])
             tables['abtest'] = {

@@ -190,3 +190,21 @@ def test_ab_rejects_unknown_metric_and_single_group():
     with pytest.raises(ValueError):
         ab_test_analysis(df, 'Group', 'Revenue', metric='median')
     assert ab_test_analysis(df, 'Group', 'Revenue') is None
+
+
+def test_cohort_heatmap_blanks_unobservable_cells():
+    frame = pd.DataFrame([
+        {'customer': 'C1', 'date': '2024-01-05'},
+        {'customer': 'C1', 'date': '2024-02-05'},
+        {'customer': 'C2', 'date': '2024-01-07'},
+        {'customer': 'C3', 'date': '2024-01-09'},
+        {'customer': 'C4', 'date': '2024-02-09'},
+    ])
+
+    result = cohort_analysis(frame, 'customer', 'date', freq='M')
+    cell_text = result['figures']['cohort'].data[0].text
+
+    assert cell_text[0][0] == '100%'
+    # 2월 코호트의 +1 기간은 아직 도래하지 않아 라벨이 비어야 한다
+    assert cell_text[1][1] == ''
+    assert not any('nan' in str(value).lower() for row in cell_text for value in row)
