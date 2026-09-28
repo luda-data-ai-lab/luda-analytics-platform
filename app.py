@@ -1951,6 +1951,16 @@ def _column_arg(name, columns, default=None):
     return default
 
 
+def _table_rows(frame, extra_columns=None):
+    """NaN 은 Jinja 의 none 검사에 걸리지 않아 그대로 출력되므로 None 으로 바꾼다."""
+    cleaned = frame.astype(object).where(pd.notna(frame), None)
+    rows = cleaned.to_dict('records')
+    if extra_columns:
+        for row, (index, _) in zip(rows, cleaned.iterrows()):
+            row.update(extra_columns(index))
+    return rows
+
+
 def _figures_json(figures):
     return {key: fig.to_json() for key, fig in (figures or {}).items() if fig is not None}
 
@@ -2090,10 +2100,10 @@ def advanced_analytics(dataset_id):
                 table = result['table'].tail(24).round(2)
                 tables['timeseries'] = {
                     'columns': ['period', 'value', 'moving_avg', 'change_pct', 'yoy_pct'],
-                    'rows': [
-                        dict(period=index.strftime('%Y-%m-%d'), **row.to_dict())
-                        for index, row in table.iterrows()
-                    ],
+                    'rows': _table_rows(
+                        table,
+                        lambda index: {'period': index.strftime('%Y-%m-%d')}
+                    ),
                 }
 
         elif tab == 'outlier' and params['value_col']:
@@ -2107,7 +2117,7 @@ def advanced_analytics(dataset_id):
                 insights = _outlier_insights(result, params['value_col'])
                 tables['outlier'] = {
                     'columns': columns,
-                    'rows': result['rows'][columns].round(2).to_dict('records'),
+                    'rows': _table_rows(result['rows'][columns].round(2)),
                 }
 
         elif tab == 'correlation':
