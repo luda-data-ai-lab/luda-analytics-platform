@@ -564,3 +564,28 @@ a {
     .card { margin-bottom: 0.5rem; }
     .stat-tile .stat-value { font-size: 1.25rem; }
 }
+
+/* ------------------------------------------------------------- 분석 리포트 인쇄 */
+@media print {
+    .app-navbar,
+    .app-footer,
+    .d-print-none {
+        display: none !important;
+    }
+
+    .analytics-report {
+        max-width: 100%;
+    }
+
+    .analytics-report .table {
+        font-size: 0.72rem;
+    }
+
+    .analytics-report h5 {
+        break-after: avoid;
+    }
+
+    .analytics-chart {
+        break-inside: avoid;
+    }
+}
