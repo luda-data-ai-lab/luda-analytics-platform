@@ -27,12 +27,13 @@
                     <a class="list-group-item list-group-item-action" href="#upload">2. {{ '데이터 업로드' if ko else 'Uploading data' }}</a>
                     <a class="list-group-item list-group-item-action" href="#dashboard">3. {{ '대시보드' if ko else 'Dashboard' }}</a>
                     <a class="list-group-item list-group-item-action" href="#visualize">4. {{ '차트 만들기' if ko else 'Building charts' }}</a>
-                    <a class="list-group-item list-group-item-action" href="#template">5. {{ '템플릿 분석' if ko else 'Template analysis' }}</a>
-                    <a class="list-group-item list-group-item-action" href="#examples">6. {{ '예시 보기' if ko else 'Examples' }}</a>
-                    <a class="list-group-item list-group-item-action" href="#ocr">7. {{ '문서 스캔(OCR)' if ko else 'Document scan (OCR)' }}</a>
-                    <a class="list-group-item list-group-item-action" href="#language">8. {{ '언어 전환' if ko else 'Language switching' }}</a>
-                    <a class="list-group-item list-group-item-action" href="#security">9. {{ '보안과 데이터 보호' if ko else 'Security and data protection' }}</a>
-                    <a class="list-group-item list-group-item-action" href="#faq">10. {{ '문제 해결 / FAQ' if ko else 'Troubleshooting / FAQ' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#advanced">5. {{ '고급 분석' if ko else 'Advanced analysis' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#template">6. {{ '템플릿 분석' if ko else 'Template analysis' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#examples">7. {{ '예시 보기' if ko else 'Examples' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#ocr">8. {{ '문서 스캔(OCR)' if ko else 'Document scan (OCR)' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#language">9. {{ '언어 전환' if ko else 'Language switching' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#security">10. {{ '보안과 데이터 보호' if ko else 'Security and data protection' }}</a>
+                    <a class="list-group-item list-group-item-action" href="#faq">11. {{ '문제 해결 / FAQ' if ko else 'Troubleshooting / FAQ' }}</a>
                 </div>
             </div>
         </div>
@@ -158,9 +159,41 @@
             </section>
 
             <!-- 5 -->
+            <section id="advanced" class="card manual-section mb-4">
+                <div class="card-body">
+                    <h2 class="manual-heading">5. {{ '고급 분석' if ko else 'Advanced analysis' }}</h2>
+                    <p>
+                        {{ '데이터셋 화면이나 대시보드에서 [고급 분석]을 누르면 표준 분석 방법론 3가지를 컬럼 선택만으로 실행할 수 있습니다. 결과는 차트·표와 함께 문장형 인사이트로 요약됩니다.'
+                           if ko else
+                           'Open [Advanced Analysis] from a dataset page or the dashboard to run three standard analytical methods by simply choosing columns. Results come with charts, tables and a written summary.' }}
+                    </p>
+                    <ul class="manual-list">
+                        <li><strong>{{ '시계열 분석' if ko else 'Time series' }}:</strong>
+                            {{ '날짜·값 컬럼과 주기(일/주/월/분기/년)·집계 방식을 고르면 추세선, 이동평균, 전기 대비 증감률(MoM), 전년 동기 대비(YoY), 선형 추세+계절 성분 기반 예측(95% 구간)을 계산합니다.'
+                               if ko else
+                               'Pick a date column, a value column, a frequency (daily/weekly/monthly/quarterly/yearly) and an aggregation to get a trend line, moving average, period-over-period (MoM) change, year-over-year change and a linear-trend + seasonality forecast with a 95% band.' }}</li>
+                        <li><strong>{{ '이상치 탐지' if ko else 'Outlier detection' }}:</strong>
+                            {{ 'IQR(기본 1.5배) 또는 Z-score(기본 ±3) 기준으로 정상 범위를 계산해 벗어난 행을 표시하고, 그룹 컬럼을 고르면 그룹별 이상치 건수도 보여 줍니다.'
+                               if ko else
+                               'Flags rows outside the normal range using IQR (1.5× by default) or Z-score (±3 by default), and—if you pick a group column—shows how many outliers each group contributes.' }}</li>
+                        <li><strong>{{ '상관 · 기여도' if ko else 'Correlation & drivers' }}:</strong>
+                            {{ '숫자 컬럼 간 상관행렬 히트맵과 상관이 가장 강한 조합을 보여 주고, 타깃 컬럼을 고르면 표준화 회귀계수(β)로 변수별 기여도와 설명력(R²)을 제시합니다.'
+                               if ko else
+                               'Shows a correlation heatmap across numeric columns and the strongest pairs; choosing a target column adds standardized regression coefficients (β) per driver plus the model fit (R²).' }}</li>
+                    </ul>
+                    <div class="manual-callout">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        {{ '해석 시 주의: 예측은 과거 추세가 이어진다고 가정한 단순 모델이므로 단기 참고용입니다. 상관관계와 회귀계수는 인과관계를 보장하지 않으며, 데이터 기간이 짧거나(3기간 미만) 숫자 컬럼이 부족하면 분석이 실행되지 않습니다.'
+                           if ko else
+                           'Read with care: the forecast is a simple model that assumes the past trend continues, so use it for short horizons only. Correlation and regression coefficients do not prove causation, and the analysis is skipped when the series is too short (fewer than 3 periods) or there are too few numeric columns.' }}
+                    </div>
+                </div>
+            </section>
+
+            <!-- 6 -->
             <section id="template" class="card manual-section mb-4">
                 <div class="card-body">
-                    <h2 class="manual-heading">5. {{ '템플릿 분석' if ko else 'Template analysis' }}</h2>
+                    <h2 class="manual-heading">6. {{ '템플릿 분석' if ko else 'Template analysis' }}</h2>
                     <p>
                         {{ '템플릿 분석은 데이터 유형(매출, 작물 생산량, 마케팅, 고객 등)을 고르면 KPI와 차트, 문장 형태의 인사이트를 자동으로 만들어 줍니다.'
                            if ko else
@@ -185,7 +218,7 @@
             <!-- 6 -->
             <section id="examples" class="card manual-section mb-4">
                 <div class="card-body">
-                    <h2 class="manual-heading">6. {{ '예시 보기' if ko else 'Examples' }}</h2>
+                    <h2 class="manual-heading">7. {{ '예시 보기' if ko else 'Examples' }}</h2>
                     <p class="mb-0">
                         {{ '자신의 데이터를 올리기 전에 [예시 보기]에서 샘플 데이터로 만든 분석 결과를 미리 확인할 수 있습니다. 어떤 열을 준비해야 하는지 파악하는 데 유용합니다.'
                            if ko else
@@ -197,7 +230,7 @@
             <!-- 7 -->
             <section id="ocr" class="card manual-section mb-4">
                 <div class="card-body">
-                    <h2 class="manual-heading">7. {{ '문서 스캔(OCR)' if ko else 'Document scan (OCR)' }}</h2>
+                    <h2 class="manual-heading">8. {{ '문서 스캔(OCR)' if ko else 'Document scan (OCR)' }}</h2>
                     <p class="mb-0">
                         {{ '종이 표나 PDF만 있는 경우 [문서 스캔]에서 이미지를 올리면 표를 인식해 데이터로 변환합니다. 인식 결과는 저장 전에 화면에서 직접 수정할 수 있으므로, 숫자와 열 이름을 확인한 뒤 저장하세요.'
                            if ko else
@@ -209,7 +242,7 @@
             <!-- 8 -->
             <section id="language" class="card manual-section mb-4">
                 <div class="card-body">
-                    <h2 class="manual-heading">8. {{ '언어 전환' if ko else 'Language switching' }}</h2>
+                    <h2 class="manual-heading">9. {{ '언어 전환' if ko else 'Language switching' }}</h2>
                     <p class="mb-0">
                         {{ '상단 오른쪽 지구본 메뉴에서 한국어와 English를 전환할 수 있습니다. 보고 있던 페이지를 그대로 유지한 채 화면 문구와 차트 제목이 함께 바뀝니다.'
                            if ko else
@@ -221,7 +254,7 @@
             <!-- 9 -->
             <section id="security" class="card manual-section mb-4">
                 <div class="card-body">
-                    <h2 class="manual-heading">9. {{ '보안과 데이터 보호' if ko else 'Security and data protection' }}</h2>
+                    <h2 class="manual-heading">10. {{ '보안과 데이터 보호' if ko else 'Security and data protection' }}</h2>
                     <ul class="manual-list mb-0">
                         <li>{{ '데이터셋과 업로드 파일은 소유자만 조회 · 다운로드할 수 있습니다.'
                                if ko else 'Datasets and uploaded files can only be viewed or downloaded by their owner.' }}</li>
@@ -238,7 +271,7 @@
             <!-- 10 -->
             <section id="faq" class="card manual-section mb-4">
                 <div class="card-body">
-                    <h2 class="manual-heading">10. {{ '문제 해결 / FAQ' if ko else 'Troubleshooting / FAQ' }}</h2>
+                    <h2 class="manual-heading">11. {{ '문제 해결 / FAQ' if ko else 'Troubleshooting / FAQ' }}</h2>
                     <div class="accordion" id="manualFaq">
                         <div class="accordion-item">
                             <h3 class="accordion-header">

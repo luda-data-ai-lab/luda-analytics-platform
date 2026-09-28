@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+
+{% set ko = current_language == 'ko' %}
+
+{% block title %}{{ '고급 분석' if ko else 'Advanced Analysis' }} - {{ dataset.name }}{% endblock %}
+
+{% block content %}
+<div class="container mt-4 mb-5">
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{{ url_for('dashboard') }}">{{ '대시보드' if ko else 'Dashboard' }}</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('view_dataset', dataset_id=dataset.id) }}">{{ dataset.name }}</a></li>
+            <li class="breadcrumb-item active">{{ '고급 분석' if ko else 'Advanced Analysis' }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-graph-up-arrow text-primary"></i>
+                {{ '고급 분석' if ko else 'Advanced Analysis' }}
+            </h2>
+            <p class="text-muted mb-0">{{ dataset.name }}</p>
+        </div>
+        <a href="{{ url_for('visualize', dataset_id=dataset.id) }}" class="btn btn-outline-secondary">
+            <i class="bi bi-bar-chart"></i> {{ '시각화' if ko else 'Visualize' }}
+        </a>
+    </div>
+
+    <ul class="nav nav-tabs mb-4">
+        {% for key, label_ko, label_en, icon in [
+            ('timeseries', '시계열 분석', 'Time Series', 'bi-activity'),
+            ('outlier', '이상치 탐지', 'Outliers', 'bi-exclamation-diamond'),
+            ('correlation', '상관 · 기여도', 'Correlation & Drivers', 'bi-diagram-3')] %}
+        <li class="nav-item">
+            <a class="nav-link {% if params.tab == key %}active{% endif %}"
+               href="{{ url_for('advanced_analytics', dataset_id=dataset.id, tab=key) }}">
+                <i class="bi {{ icon }}"></i> {{ label_ko if ko else label_en }}
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <div class="card mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <input type="hidden" name="tab" value="{{ params.tab }}">
+
+                {% if params.tab == 'timeseries' %}
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="date_col">{{ '날짜 컬럼' if ko else 'Date column' }}</label>
+                    <select class="form-select" id="date_col" name="date_col">
+                        {% for column in options.datetime or columns %}
+                        <option value="{{ column }}" {% if column == params.date_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="value_col">{{ '값 컬럼' if ko else 'Value column' }}</label>
+                    <select class="form-select" id="value_col" name="value_col">
+                        {% for column in options.numeric %}
+                        <option value="{{ column }}" {% if column == params.value_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold" for="freq">{{ '주기' if ko else 'Frequency' }}</label>
+                    <select class="form-select" id="freq" name="freq">
+                        {% for key, label_ko, label_en in [('D','일','Daily'),('W','주','Weekly'),('M','월','Monthly'),('Q','분기','Quarterly'),('Y','년','Yearly')] %}
+                        <option value="{{ key }}" {% if key == params.freq %}selected{% endif %}>{{ label_ko if ko else label_en }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold" for="agg">{{ '집계' if ko else 'Aggregation' }}</label>
+                    <select class="form-select" id="agg" name="agg">
+                        {% for key in options.aggs %}
+                        <option value="{{ key }}" {% if key == params.agg %}selected{% endif %}>{{ key }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label fw-bold" for="window">{{ '이동평균' if ko else 'MA' }}</label>
+                    <input class="form-control" id="window" name="window" type="number" min="2" max="24" value="{{ params.window }}">
+                </div>
+                <div class="col-md-1">
+                    <label class="form-label fw-bold" for="horizon">{{ '예측' if ko else 'Forecast' }}</label>
+                    <input class="form-control" id="horizon" name="horizon" type="number" min="0" max="24" value="{{ params.horizon }}">
+                </div>
+
+                {% elif params.tab == 'outlier' %}
+                <div class="col-md-4">
+                    <label class="form-label fw-bold" for="value_col">{{ '검사할 값 컬럼' if ko else 'Value column' }}</label>
+                    <select class="form-select" id="value_col" name="value_col">
+                        {% for column in options.numeric %}
+                        <option value="{{ column }}" {% if column == params.value_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="method">{{ '탐지 방법' if ko else 'Method' }}</label>
+                    <select class="form-select" id="method" name="method">
+                        <option value="iqr" {% if params.method == 'iqr' %}selected{% endif %}>IQR</option>
+                        <option value="zscore" {% if params.method == 'zscore' %}selected{% endif %}>Z-score</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold" for="threshold">{{ '임계값' if ko else 'Threshold' }}</label>
+                    <input class="form-control" id="threshold" name="threshold" type="number" step="0.1" min="0.5" max="6" value="{{ params.threshold }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="group_col">{{ '그룹 컬럼 (선택)' if ko else 'Group by (optional)' }}</label>
+                    <select class="form-select" id="group_col" name="group_col">
+                        <option value="">{{ '없음' if ko else 'None' }}</option>
+                        {% for column in options.categorical %}
+                        <option value="{{ column }}" {% if column == params.group_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% else %}
+                <div class="col-md-5">
+                    <label class="form-label fw-bold" for="target_col">{{ '기여도 분석 타깃' if ko else 'Driver analysis target' }}</label>
+                    <select class="form-select" id="target_col" name="target_col">
+                        {% for column in options.numeric %}
+                        <option value="{{ column }}" {% if column == params.target_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% endif %}
+
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-play-circle"></i> {{ '분석 실행' if ko else 'Run' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if insights %}
+    <div class="card mb-4">
+        <div class="card-header py-3">
+            <h6 class="mb-0"><i class="bi bi-lightbulb text-warning"></i> {{ '자동 인사이트' if ko else 'Automated insights' }}</h6>
+        </div>
+        <div class="card-body">
+            <ul class="mb-0 ps-3">
+                {% for line in insights %}
+                <li class="mb-2">{{ line | insight_html }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if stats %}
+    <div class="row g-3 mb-4">
+        {% for key, value in stats.items() %}
+        {% if value is not none %}
+        <div class="col-6 col-lg-3">
+            <div class="card h-100">
+                <div class="card-body py-3">
+                    <div class="text-muted small text-uppercase">{{ key.replace('_', ' ') }}</div>
+                    <div class="fs-5 fw-bold">
+                        {% if value is number %}{{ "{:,.2f}".format(value).rstrip('0').rstrip('.') }}{% else %}{{ value }}{% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% for key, chart in charts.items() %}
+    <div class="card mb-4">
+        <div class="card-body p-2">
+            <div id="chart_{{ key }}" class="analytics-chart"></div>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% for name, table in tables.items() %}
+    <div class="card mb-4">
+        <div class="card-header py-3">
+            <h6 class="mb-0"><i class="bi bi-table"></i>
+                {% if name == 'outlier' %}{{ '이상치 상위 행' if ko else 'Top outlier rows' }}
+                {% elif name == 'correlation' %}{{ '상관계수 상위 조합' if ko else 'Strongest correlations' }}
+                {% else %}{{ '기간별 지표' if ko else 'Period metrics' }}{% endif %}
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>{% for column in table.columns %}<th class="text-nowrap px-3">{{ column }}</th>{% endfor %}</tr>
+                    </thead>
+                    <tbody>
+                        {% for row in table.rows %}
+                        <tr>{% for column in table.columns %}<td class="px-3">{{ row.get(column) if row.get(column) is not none else '' }}</td>{% endfor %}</tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
+<script>
+function renderChart(divId, chartData) {
+    try {
+        Plotly.newPlot(divId, chartData.data, chartData.layout, {responsive: true});
+    } catch (error) {
+        console.error('Chart render error:', divId, error);
+    }
+}
+{% for key, chart in charts.items() %}
+renderChart('chart_{{ key }}', {{ chart | safe }});
+{% endfor %}
+</script>
+{% endblock %}

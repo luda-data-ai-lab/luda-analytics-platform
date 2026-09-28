@@ -313,6 +313,12 @@ a {
     width: 100%;
 }
 
+/* /analytics 의 고급 분석 차트 */
+.analytics-chart {
+    width: 100%;
+    min-height: 400px;
+}
+
 @media (max-width: 768px) {
     #chart {
         height: 500px;
