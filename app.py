@@ -2405,6 +2405,80 @@ def _analytics_guide(tab):
     }
 
 
+# 컬럼 하나를 고르는 대신 "숫자 컬럼이 2개 이상" 인지 확인하는 특수 요건 키
+TWO_NUMERIC_COLUMNS = '__two_numeric__'
+
+ANALYTICS_TAB_REQUIREMENTS = {
+    'timeseries': [
+        ('date_col', '날짜 컬럼', 'Date column', 'datetime'),
+        ('value_col', '숫자 값 컬럼', 'Numeric value column', 'numeric'),
+    ],
+    'outlier': [
+        ('value_col', '숫자 값 컬럼', 'Numeric value column', 'numeric'),
+    ],
+    'correlation': [
+        (TWO_NUMERIC_COLUMNS, '숫자 컬럼 2개 이상', 'At least two numeric columns', 'numeric'),
+    ],
+    'rfm': [
+        ('customer_col', '고객 ID 컬럼', 'Customer ID column', 'categorical'),
+        ('date_col', '날짜 컬럼', 'Date column', 'datetime'),
+        ('value_col', '거래 금액 컬럼', 'Amount column', 'numeric'),
+    ],
+    'pareto': [
+        ('category_col', '분류 컬럼', 'Category column', 'categorical'),
+        ('value_col', '숫자 값 컬럼', 'Numeric value column', 'numeric'),
+    ],
+    'cohort': [
+        ('customer_col', '고객 ID 컬럼', 'Customer ID column', 'categorical'),
+        ('date_col', '날짜 컬럼', 'Date column', 'datetime'),
+    ],
+    'abtest': [
+        ('group_col', '그룹 컬럼 (2개 그룹)', 'Group column (exactly two groups)', 'categorical'),
+        ('value_col', '숫자 값 컬럼', 'Numeric value column', 'numeric'),
+    ],
+}
+
+
+def _analytics_empty_state(params, options, failed=False):
+    """결과가 비었을 때 이유와 다음 행동을 알려준다."""
+    missing = []
+    for key, label_ko, label_en, pool in ANALYTICS_TAB_REQUIREMENTS.get(params['tab'], []):
+        candidates = options.get(pool) or []
+        if (len(candidates) >= 2 if key == TWO_NUMERIC_COLUMNS else bool(params.get(key))):
+            continue
+        missing.append({
+            'label': get_message(label_ko, label_en),
+            'hint': get_message(
+                '아래 설정에서 컬럼을 선택한 뒤 "분석 실행"을 눌러주세요.',
+                'Select the column in the settings below, then press "Run".'
+            ) if candidates else get_message(
+                '이 데이터셋에는 해당 형식의 컬럼이 없습니다. 원본 파일의 컬럼과 자료형(날짜/숫자)을 확인해주세요.',
+                'This dataset has no column of that type. Check the columns and data types '
+                '(date/number) in the source file.'
+            ),
+        })
+
+    if failed:
+        reason = get_message(
+            '분석 중 오류가 발생해 결과를 만들지 못했습니다. 선택한 컬럼을 바꿔 다시 실행해주세요.',
+            'The analysis failed, so no result was produced. Change the selected columns and run again.'
+        )
+    elif missing:
+        reason = get_message(
+            '분석에 필요한 컬럼이 지정되지 않아 실행되지 않았습니다.',
+            'The analysis did not run because the required columns are not set.'
+        )
+    else:
+        reason = get_message(
+            '설정은 유효하지만 조건을 만족하는 데이터가 부족해 결과가 비어 있습니다 '
+            '(예: 기간이 2개 미만, 그룹이 정확히 2개가 아님, 유효한 숫자 행 부족).',
+            'The settings are valid, but there was not enough qualifying data '
+            '(e.g. fewer than two periods, a group column without exactly two groups, '
+            'too few valid numeric rows).'
+        )
+    return {'reason': reason, 'missing': missing}
+
+
 ANALYTICS_STAT_LABELS = {
     'periods': ('기간 수', 'Periods', 'int'),
     'last_value': ('최근 기간 값', 'Latest period', 'num'),
@@ -2649,20 +2723,20 @@ def advanced_analytics(dataset_id):
     params = _analytics_params(columns, options)
 
     charts, insights, tables, stats = {}, [], {}, {}
+    failed = False
     try:
         charts, insights, tables, stats = _run_analytics(df, columns, params)
     except Exception:
+        failed = True
         logger.exception("고급 분석 실패: dataset=%s tab=%s", dataset_id, params['tab'])
-        flash(get_message('분석을 완료하지 못했습니다. 선택한 컬럼을 확인해주세요.',
-                          'Could not complete the analysis. Please check the selected columns.'), 'warning')
 
+    empty_state = None
     if not charts and not insights:
-        flash(get_message('선택한 컬럼으로 분석할 데이터가 충분하지 않습니다.',
-                          'Not enough data to analyze with the selected columns.'), 'info')
+        empty_state = _analytics_empty_state(params, options, failed=failed)
 
     return render_template('analytics.html', dataset=dataset, columns=columns,
                            options=options, params=params, charts=charts,
-                           insights=insights, tables=tables,
+                           insights=insights, tables=tables, empty_state=empty_state,
                            stat_cards=_stat_cards(stats),
                            guide=_analytics_guide(params['tab']))
 
@@ -2793,6 +2867,7 @@ def example_view(template_type):
     from types import SimpleNamespace
     from datetime import datetime as dt
     fake_dataset = SimpleNamespace(
+        id=None,
         name=TEMPLATES[template_type]['name_ko'] + ' 예시',
         uploaded_at=dt.now(),
         row_count=len(df)
