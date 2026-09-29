@@ -2842,8 +2842,48 @@ def example_view(template_type):
                            charts=charts,
                            metrics=metrics,
                            insights=insights,
+                           example_type=template_type,
                            data=df.head(100).to_dict('records'),
                            columns=df.columns.tolist())
+
+
+@app.route('/example/<template_type>/advanced')
+@login_required
+def example_advanced_analytics(template_type):
+    """예시 샘플을 내 데이터셋으로 적재한 뒤 고급 분석으로 이동"""
+    if template_type not in TEMPLATES:
+        flash('잘못된 템플릿 유형입니다.' if session.get('language') == 'ko' else 'Invalid template type.', 'danger')
+        return redirect(url_for('examples'))
+
+    sample_file = os.path.join(TEMPLATE_FOLDER, TEMPLATES[template_type]['filename'])
+    if not os.path.exists(sample_file):
+        flash('샘플 파일을 찾을 수 없습니다.' if session.get('language') == 'ko' else 'Sample file not found.', 'danger')
+        return redirect(url_for('examples'))
+
+    dataset_name = f"{TEMPLATES[template_type]['name_ko']} 예시"
+    dataset = Dataset.query.filter_by(user_id=current_user.id, name=dataset_name,
+                                      is_template=True).first()
+    if dataset is None:
+        try:
+            df = pd.read_csv(sample_file)
+            dataset = create_dataset_with_records(
+                df,
+                name=dataset_name,
+                description=f"Example: {template_type}",
+                filename=TEMPLATES[template_type]['filename'],
+                file_path=sample_file,
+                user_id=current_user.id,
+                sanitize=True,
+                is_template=True
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+            logger.exception("예시 데이터셋 생성 실패: template_type=%s", template_type)
+            flash_msg('process_failed', 'danger')
+            return redirect(url_for('example_view', template_type=template_type))
+
+    return redirect(url_for('advanced_analytics', dataset_id=dataset.id))
 
 
 @app.route('/crop_example')
