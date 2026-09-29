@@ -64,6 +64,28 @@ def test_env_overrides(monkeypatch):
     assert cfg.SQLALCHEMY_DATABASE_URI == 'sqlite:///env.db'
 
 
+@pytest.mark.parametrize('given', [
+    'postgresql://luda_user:pw@db.internal:5432/luda_analytics',
+    'postgres://luda_user:pw@db.internal:5432/luda_analytics',
+])
+def test_postgres_url_without_driver_is_pinned_to_psycopg2(monkeypatch, given):
+    monkeypatch.setenv('SECRET_KEY', 'from-env')
+    monkeypatch.setenv('DATABASE_URL', f'  {given}  ')
+    cfg = _reload_config()
+
+    assert cfg.SQLALCHEMY_DATABASE_URI == (
+        'postgresql+psycopg2://luda_user:pw@db.internal:5432/luda_analytics'
+    )
+
+
+def test_explicit_database_driver_is_kept(monkeypatch):
+    monkeypatch.setenv('SECRET_KEY', 'from-env')
+    monkeypatch.setenv('DATABASE_URL', 'postgresql+psycopg://user:pw@host/db')
+    cfg = _reload_config()
+
+    assert cfg.SQLALCHEMY_DATABASE_URI == 'postgresql+psycopg://user:pw@host/db'
+
+
 def test_upload_and_language_settings():
     cfg = config.Config
 

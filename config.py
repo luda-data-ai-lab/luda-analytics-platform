@@ -44,10 +44,23 @@ def _secret_key():
     return secrets.token_hex(32)
 
 
+def _normalize_database_uri(uri):
+    """드라이버가 생략된 Postgres URL 을 psycopg2 로 고정한다.
+
+    SQLAlchemy 2.1 부터 `postgresql://` 의 기본 드라이버가 psycopg(3) 로 바뀌어,
+    requirements 의 psycopg2-binary 만 설치된 환경에서 `No module named 'psycopg'`
+    로 기동이 실패한다.
+    """
+    for prefix in ('postgresql://', 'postgres://'):
+        if uri.startswith(prefix):
+            return 'postgresql+psycopg2://' + uri[len(prefix):]
+    return uri
+
+
 def _database_uri():
     uri = os.environ.get('DATABASE_URL')
     if uri:
-        return uri
+        return _normalize_database_uri(uri.strip())
     if IS_PRODUCTION:
         raise RuntimeError(
             'DATABASE_URL 환경변수가 설정되지 않았습니다. / DATABASE_URL must be set when FLASK_ENV=production.'
