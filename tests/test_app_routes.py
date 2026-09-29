@@ -710,3 +710,49 @@ def test_every_tab_metric_has_a_label(client, user, db_session):
         body = response.get_data(as_text=True)
         for key in app_module.ANALYTICS_STAT_LABELS:
             assert key.replace('_', ' ').upper() not in body
+
+def test_advanced_analytics_explains_missing_required_column(client, user, db_session):
+    """A/B 탭은 그룹 컬럼 없이는 실행되지 않으므로 이유를 화면에 알려준다."""
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}?tab=abtest&value_col=Revenue')
+
+    body = response.get_data(as_text=True)
+    assert '분석 결과가 없습니다' in body
+    assert '필요한 컬럼이 지정되지 않아' in body
+    assert '그룹 컬럼' in body
+
+
+def test_advanced_analytics_reports_column_type_missing_from_dataset(client, user, db_session):
+    """날짜 컬럼 자체가 없는 데이터셋이면 파일을 확인하라고 안내한다."""
+    dataset = _make_dataset(db_session, user,
+                            rows=[{'Region': '서울', 'Revenue': 100},
+                                  {'Region': '부산', 'Revenue': 200}])
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}?tab=timeseries')
+
+    body = response.get_data(as_text=True)
+    assert '분석 결과가 없습니다' in body
+    assert '해당 형식의 컬럼이 없습니다' in body
+
+
+def test_advanced_analytics_empty_state_hidden_when_result_exists(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_timeseries_rows())
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}?tab=timeseries&date_col=Date&value_col=Revenue')
+
+    assert '분석 결과가 없습니다' not in response.get_data(as_text=True)
+
+
+def test_template_result_links_to_advanced_analytics(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_timeseries_rows())
+    dataset.is_template = True
+    db_session.session.commit()
+    _login(client)
+
+    response = client.get(f'/template/analysis/{dataset.id}')
+
+    assert f'/analytics/{dataset.id}' in response.get_data(as_text=True)

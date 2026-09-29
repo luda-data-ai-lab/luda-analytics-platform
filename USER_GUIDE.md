@@ -114,13 +114,17 @@
 
 ## 5. 고급 분석
 
-데이터셋 화면 또는 대시보드의 **고급 분석** 버튼(`/analytics/<dataset_id>`)에서 표준 분석 방법론을 실행합니다. 일곱 개의 탭으로 구성되며(이 장에서는 앞의 세 탭, 나머지 네 탭은 [6장](#6-세그먼트--검정-분석과-리포트-segmentation-testing--reports) 참고), 각 탭은 컬럼 선택 후 **분석 실행**을 누르면 차트·표·자동 인사이트를 함께 보여줍니다.
+데이터셋 화면, 대시보드, 그리고 템플릿 분석 결과 화면·템플릿 목록의 **고급 분석** 버튼(`/analytics/<dataset_id>`)에서 표준 분석 방법론을 실행합니다. 템플릿 자동 분석으로 만든 데이터셋도 같은 버튼으로 바로 이어서 심화 분석할 수 있습니다. 일곱 개의 탭으로 구성되며(이 장에서는 앞의 세 탭, 나머지 네 탭은 [6장](#6-세그먼트--검정-분석과-리포트-segmentation-testing--reports) 참고), 각 탭은 컬럼 선택 후 **분석 실행**을 누르면 차트·표·자동 인사이트를 함께 보여줍니다.
 
 각 탭 상단에는 **어떤 분석인가요? (What is this analysis?)** 안내 패널이 있어 ① 그 분석이 무엇을 보는지, ② 필요한 컬럼, ③ 결과 해석 방법과 주의점을 한국어·영문으로 보여주고, 이 문서에 대응하는 매뉴얼 절로 가는 링크를 제공합니다. 인쇄·PDF 리포트에도 같은 설명이 포함되어, 리포트를 받는 사람이 별도 설명 없이도 분석 유형을 이해할 수 있습니다.
 
 *Each tab starts with a “What is this analysis?” panel describing the method, the columns it needs and how to read the result (KO/EN), with a link to the matching manual section. The print/PDF report embeds the same explanation so recipients can interpret it without extra context.*
 
 차트 위의 **주요 지표** 카드는 라벨이 현재 언어(한/영)로 표시되고, 값은 인사이트 문장과 같은 자릿수 규칙을 씁니다 — 건수는 정수, 비율은 소수 1자리 `%`, p 값은 소수 4자리(아주 작으면 `4.56e-05` 지수 표기), 유의성은 `유의함 / 유의하지 않음`. Excel 내보내기는 화면 서식이 아니라 원래 숫자·불리언 값을 그대로 담습니다.
+
+결과가 비어 있으면 화면에 **분석 결과가 없습니다** 안내 카드가 나타나 이유를 알려줍니다 — ① 필요한 컬럼(예: A/B 검정의 그룹 컬럼)을 아직 고르지 않은 경우에는 어떤 컬럼을 골라야 하는지, ② 데이터셋에 그 형식(날짜·숫자)의 컬럼 자체가 없으면 원본 파일의 컬럼과 자료형을 확인하라는 안내, ③ 설정은 맞지만 데이터가 부족한 경우(기간 2개 미만, 그룹이 정확히 2개가 아님 등)에는 그 사실을 표시합니다.
+
+*When a tab produces nothing, a “No analysis result” panel explains why: a required column has not been selected yet, the dataset has no column of that type (check the source file), or the settings are valid but the data does not meet the minimum conditions.*
 
 *The **Key metrics** cards use localized labels and the same precision rules as the written insights — counts as integers, shares with one decimal `%`, p-values with four decimals (scientific notation such as `4.56e-05` when tiny) and significance as Significant / Not significant. The Excel export keeps the raw numeric and boolean values instead of the on-screen formatting.*
 

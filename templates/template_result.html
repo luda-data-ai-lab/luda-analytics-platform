@@ -21,10 +21,22 @@
                 {% if columns %}&nbsp;·&nbsp; {{ columns|length }} {% if current_language == 'ko' %}컬럼{% else %}columns{% endif %}{% endif %}
             </p>
         </div>
-        <a href="{{ url_for('template_analysis') }}" class="btn btn-outline-primary">
-            <i class="bi bi-arrow-left"></i>
-            {% if current_language == 'ko' %}새 분석{% else %}New Analysis{% endif %}
-        </a>
+        <div class="d-flex gap-2">
+            {% if dataset.id %}
+            <a href="{{ url_for('advanced_analytics', dataset_id=dataset.id) }}" class="btn btn-primary">
+                <i class="bi bi-graph-up-arrow"></i>
+                {% if current_language == 'ko' %}고급 분석{% else %}Advanced Analysis{% endif %}
+            </a>
+            <a href="{{ url_for('visualize', dataset_id=dataset.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-bar-chart"></i>
+                {% if current_language == 'ko' %}시각화{% else %}Visualize{% endif %}
+            </a>
+            {% endif %}
+            <a href="{{ url_for('template_analysis') }}" class="btn btn-outline-primary">
+                <i class="bi bi-arrow-left"></i>
+                {% if current_language == 'ko' %}새 분석{% else %}New Analysis{% endif %}
+            </a>
+        </div>
     </div>
 
     <!-- 주요 지표 카드 -->

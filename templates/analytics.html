@@ -274,6 +274,25 @@
         </div>
     </div>
 
+    {% if empty_state %}
+    <div class="card mb-4 border-warning-subtle">
+        <div class="card-body">
+            <h6 class="mb-2">
+                <i class="bi bi-exclamation-circle text-warning"></i>
+                {{ '분석 결과가 없습니다' if ko else 'No analysis result' }}
+            </h6>
+            <p class="mb-{{ 0 if not empty_state.missing else 2 }}">{{ empty_state.reason }}</p>
+            {% if empty_state.missing %}
+            <ul class="mb-0 ps-3">
+                {% for item in empty_state.missing %}
+                <li class="mb-1"><strong>{{ item.label }}</strong> — <span class="text-muted">{{ item.hint }}</span></li>
+                {% endfor %}
+            </ul>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
     {% if insights %}
     <div class="card mb-4">
         <div class="card-header py-3">
