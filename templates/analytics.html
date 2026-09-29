@@ -23,6 +23,11 @@
             <p class="text-muted mb-0">{{ dataset.name }}</p>
         </div>
         <div class="d-flex gap-2">
+            {% if all_guides %}
+            <button type="button" class="btn btn-outline-info" data-bs-toggle="modal" data-bs-target="#guideModal">
+                <i class="bi bi-book"></i> {{ '기법 설명' if ko else 'Method guide' }}
+            </button>
+            {% endif %}
             <a href="{{ url_for('analytics_report', dataset_id=dataset.id, **params) }}" class="btn btn-outline-primary" target="_blank">
                 <i class="bi bi-file-earmark-pdf"></i> {{ 'PDF 리포트' if ko else 'PDF report' }}
             </a>
@@ -371,6 +376,86 @@
     </div>
     {% endfor %}
 </div>
+
+{% if all_guides %}
+<div class="modal fade" id="guideModal" tabindex="-1" aria-labelledby="guideModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="guideModalLabel">
+                    <i class="bi bi-book text-primary"></i>
+                    {{ '고급 분석 기법 설명' if ko else 'Advanced analysis methods' }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"
+                        aria-label="{{ '닫기' if ko else 'Close' }}"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">
+                    {{ '매뉴얼의 고급 분석 설명을 요약한 것입니다. 각 항목의 [매뉴얼에서 자세히] 를 누르면 예시가 있는 전체 설명으로 이동합니다.'
+                       if ko else
+                       'A summary of the advanced analysis chapter in the manual. Use “More in the manual” for the full walkthrough with worked examples.' }}
+                </p>
+                <div class="accordion" id="guideAccordion">
+                    {% for item in all_guides %}
+                    {% set is_current = item.tab == params.tab %}
+                    <div class="accordion-item">
+                        <h2 class="accordion-header" id="guideHeading{{ loop.index }}">
+                            <button class="accordion-button {% if not is_current %}collapsed{% endif %}" type="button"
+                                    data-bs-toggle="collapse" data-bs-target="#guideCollapse{{ loop.index }}"
+                                    aria-expanded="{{ 'true' if is_current else 'false' }}"
+                                    aria-controls="guideCollapse{{ loop.index }}">
+                                {{ item.title }}
+                                {% if is_current %}
+                                <span class="badge bg-primary ms-2">{{ '현재 탭' if ko else 'Current tab' }}</span>
+                                {% endif %}
+                            </button>
+                        </h2>
+                        <div id="guideCollapse{{ loop.index }}" class="accordion-collapse collapse {% if is_current %}show{% endif %}"
+                             aria-labelledby="guideHeading{{ loop.index }}" data-bs-parent="#guideAccordion">
+                            <div class="accordion-body">
+                                <p class="mb-2">{{ item.purpose }}</p>
+                                <p class="small text-muted mb-1">
+                                    <strong>{{ '필요한 컬럼' if ko else 'Columns needed' }}:</strong> {{ item.columns }}
+                                </p>
+                                <p class="small text-muted mb-1">
+                                    <strong>{{ '해석 방법' if ko else 'How to read it' }}:</strong> {{ item.reading }}
+                                </p>
+                                <p class="small text-muted mb-1">
+                                    <strong>{{ '실 사용 예 · 얻는 인사이트' if ko else 'Real-world use & insight' }}:</strong> {{ item.usecase }}
+                                </p>
+                                <p class="small text-muted mb-2">
+                                    <strong>{{ '예시' if ko else 'Example' }}:</strong> {{ item.example }}
+                                </p>
+                                <div class="d-flex gap-3">
+                                    <a class="small text-decoration-none"
+                                       href="{{ url_for('manual') }}#{{ item.anchor }}" target="_blank">
+                                        {{ '매뉴얼에서 자세히' if ko else 'More in the manual' }}
+                                        <i class="bi bi-box-arrow-up-right"></i>
+                                    </a>
+                                    {% if not is_current %}
+                                    <a class="small text-decoration-none"
+                                       href="{{ url_for('advanced_analytics', dataset_id=dataset.id, tab=item.tab) }}">
+                                        {{ '이 분석 실행하기' if ko else 'Run this analysis' }}
+                                        <i class="bi bi-arrow-right-short"></i>
+                                    </a>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ url_for('manual') }}#advanced" class="btn btn-outline-primary" target="_blank">
+                    <i class="bi bi-journal-text"></i> {{ '전체 매뉴얼 열기' if ko else 'Open full manual' }}
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ '닫기' if ko else 'Close' }}</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
 <script>
