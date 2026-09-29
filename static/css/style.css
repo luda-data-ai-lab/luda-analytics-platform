@@ -513,6 +513,22 @@ a {
     margin-bottom: 0.75rem;
 }
 
+.manual-subheading {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-top: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.manual-table {
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.manual-table code {
+    white-space: nowrap;
+}
+
 .manual-steps,
 .manual-list {
     padding-left: 1.1rem;
