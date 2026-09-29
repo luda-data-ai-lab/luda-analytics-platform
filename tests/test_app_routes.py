@@ -6,6 +6,7 @@ import os
 
 import flask
 import pytest
+from markupsafe import escape
 
 import app as app_module
 from models import DataRecord, Dataset, User
@@ -585,6 +586,19 @@ def test_analytics_guide_covers_every_tab(client, user, db_session):
         assert guide['ko'][1] in body
         assert guide['ko'][4] in body
         assert guide['ko'][5] in body
+
+
+def test_analytics_guide_modal_lists_every_method(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    body = client.get(f'/analytics/{dataset.id}?tab=timeseries').get_data(as_text=True)
+
+    assert 'id="guideModal"' in body
+    assert '기법 설명' in body
+    for guide in app_module.ANALYTICS_TAB_GUIDE.values():
+        assert guide['ko'][0] in body
+        assert str(escape(guide['ko'][3])) in body
 
 
 def test_analytics_guide_examples_are_bilingual():

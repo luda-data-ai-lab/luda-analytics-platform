@@ -2424,6 +2424,16 @@ def _analytics_guide(tab):
     }
 
 
+def _all_analytics_guides():
+    """기법 설명 패널용으로 모든 탭의 안내 문구를 탭 순서대로 돌려준다."""
+    guides = []
+    for tab in ANALYTICS_TABS:
+        guide = _analytics_guide(tab)
+        if guide:
+            guides.append(dict(guide, tab=tab))
+    return guides
+
+
 # 컬럼 하나를 고르는 대신 "숫자 컬럼이 2개 이상" 인지 확인하는 특수 요건 키
 TWO_NUMERIC_COLUMNS = '__two_numeric__'
 
@@ -2757,7 +2767,8 @@ def advanced_analytics(dataset_id):
                            options=options, params=params, charts=charts,
                            insights=insights, tables=tables, empty_state=empty_state,
                            stat_cards=_stat_cards(stats),
-                           guide=_analytics_guide(params['tab']))
+                           guide=_analytics_guide(params['tab']),
+                           all_guides=_all_analytics_guides())
 
 
 def _insight_text(lines):
