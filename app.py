@@ -80,21 +80,6 @@ def insight_html(value):
     return Markup(safe)
 
 
-@app.template_filter('stat_value')
-def stat_value(value):
-    """지표 카드 표시용 서식 (아주 작은 값은 반올림으로 0 이 되지 않게 지수 표기)"""
-    if isinstance(value, bool):
-        return (get_message('유의함', 'Significant') if value
-                else get_message('유의하지 않음', 'Not significant'))
-    if isinstance(value, (int, float)):
-        if value != 0 and abs(value) < 0.01:
-            return f'{value:.2e}'
-        if abs(value) < 1:
-            return f'{value:.4f}'.rstrip('0').rstrip('.')
-        return f'{value:,.2f}'.rstrip('0').rstrip('.')
-    return value
-
-
 def is_safe_redirect_url(target):
     """같은 호스트로의 상대 경로만 리다이렉트 허용 (open redirect 방지)"""
     if not target:
@@ -2302,6 +2287,77 @@ def _analytics_guide(tab):
     }
 
 
+ANALYTICS_STAT_LABELS = {
+    'periods': ('기간 수', 'Periods', 'int'),
+    'last_value': ('최근 기간 값', 'Latest period', 'num'),
+    'last_change_pct': ('전기 대비', 'Change vs previous', 'pct_signed'),
+    'last_yoy_pct': ('전년 동기 대비', 'Year-over-year', 'pct_signed'),
+    'slope': ('기간당 추세', 'Trend per period', 'num'),
+    'forecast_next': ('다음 기간 예측', 'Next-period forecast', 'num'),
+    'forecast_total': ('예측 구간 합계', 'Forecast horizon total', 'num'),
+    'count': ('이상치 건수', 'Outliers', 'int'),
+    'total': ('전체 건수', 'Total rows', 'int'),
+    'pct': ('이상치 비율', 'Outlier share', 'pct'),
+    'sample_size': ('분석 행 수', 'Rows analyzed', 'int'),
+    'customers': ('고객 수', 'Customers', 'int'),
+    'reference_date': ('기준일', 'Reference date', 'text'),
+    'avg_recency': ('평균 최근성(일)', 'Avg recency (days)', 'num'),
+    'avg_frequency': ('평균 거래 횟수', 'Avg frequency', 'num'),
+    'avg_monetary': ('평균 거래 금액', 'Avg monetary', 'num'),
+    'top_segment': ('최다 세그먼트', 'Largest segment', 'text'),
+    'categories': ('항목 수', 'Categories', 'int'),
+    'a_count': ('A 등급 수', 'Class A', 'int'),
+    'b_count': ('B 등급 수', 'Class B', 'int'),
+    'c_count': ('C 등급 수', 'Class C', 'int'),
+    'top20_pct': ('상위 20% 비중', 'Top 20% share', 'pct'),
+    'top_category': ('최대 기여 항목', 'Top contributor', 'text'),
+    'top_category_pct': ('최대 기여 비중', 'Top contributor share', 'pct'),
+    'cohorts': ('코호트 수', 'Cohorts', 'int'),
+    'avg_repeat_pct': ('평균 재방문율', 'Avg retention', 'pct'),
+    'best_cohort': ('최고 코호트', 'Best cohort', 'text'),
+    'best_cohort_pct': ('최고 코호트 재방문율', 'Best cohort retention', 'pct'),
+    'test': ('검정 방법', 'Test', 'text'),
+    'p_value': ('p 값', 'p-value', 'p'),
+    'difference': ('그룹 차이', 'Difference', 'num'),
+    'lift_pct': ('상대 변화', 'Lift', 'pct_signed'),
+    'significant': ('통계적 유의성', 'Significance', 'bool'),
+    'sample_sizes': ('그룹 표본 수', 'Sample sizes', 'text'),
+}
+
+
+def _format_stat(value, kind):
+    """지표 값을 종류별로 인사이트 문구와 같은 자릿수로 표기한다."""
+    if kind == 'bool':
+        return (get_message('유의함', 'Significant') if value
+                else get_message('유의하지 않음', 'Not significant'))
+    if kind == 'p':
+        return f'{value:.2e}' if value < 0.0001 else f'{value:.4f}'
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return value
+    if kind == 'int':
+        return f'{value:,.0f}'
+    if kind == 'pct':
+        return f'{value:,.1f}%'
+    if kind == 'pct_signed':
+        return f'{value:+,.1f}%'
+    return f'{value:,.2f}'
+
+
+def _stat_cards(stats):
+    """지표 딕셔너리를 현재 언어 라벨 + 표시용 서식으로 바꾼다."""
+    cards = []
+    for key, value in stats.items():
+        if value is None:
+            continue
+        label_ko, label_en, kind = ANALYTICS_STAT_LABELS.get(
+            key, (key.replace('_', ' '), key.replace('_', ' '), 'text'))
+        cards.append({
+            'label': get_message(label_ko, label_en),
+            'value': _format_stat(value, kind),
+        })
+    return cards
+
+
 def _analytics_options(df):
     return {
         'numeric': numeric_columns(df),
@@ -2488,7 +2544,8 @@ def advanced_analytics(dataset_id):
 
     return render_template('analytics.html', dataset=dataset, columns=columns,
                            options=options, params=params, charts=charts,
-                           insights=insights, tables=tables, stats=stats,
+                           insights=insights, tables=tables,
+                           stat_cards=_stat_cards(stats),
                            guide=_analytics_guide(params['tab']))
 
 
@@ -2579,7 +2636,8 @@ def analytics_report(dataset_id):
                           'Could not build the report. Please check the settings.'), 'warning')
 
     return render_template('analytics_report.html', dataset=dataset, params=params,
-                           charts=charts, insights=insights, tables=tables, stats=stats,
+                           charts=charts, insights=insights, tables=tables,
+                           stat_cards=_stat_cards(stats),
                            guide=_analytics_guide(params['tab']),
                            generated_at=datetime.now().strftime('%Y-%m-%d %H:%M'))
 

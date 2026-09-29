@@ -659,16 +659,54 @@ def test_analytics_export_redirects_when_no_result(client, user, db_session):
     assert f'/analytics/{dataset.id}?' in response.headers['Location']
 
 
-def test_stat_value_filter_formats_small_numbers_and_booleans():
+def test_stat_cards_use_localized_labels_and_fixed_precision():
+    stats = {
+        'test': "Welch's t-test",
+        'p_value': 1.0,
+        'difference': 1234.5,
+        'lift_pct': -12.34,
+        'significant': False,
+        'best_cohort_pct': None,
+    }
+
     with app_module.app.test_request_context('/'):
-        assert app_module.stat_value(4.5648935e-05) == '4.56e-05'
-        assert app_module.stat_value(0.1032996896559482) == '0.1033'
-        assert app_module.stat_value(1234.5) == '1,234.5'
-        assert app_module.stat_value(True) == 'Significant'
-        assert app_module.stat_value(False) == 'Not significant'
-        assert app_module.stat_value("Welch's t-test") == "Welch's t-test"
+        cards = app_module._stat_cards(stats)
+
+    assert cards == [
+        {'label': 'Test', 'value': "Welch's t-test"},
+        {'label': 'p-value', 'value': '1.0000'},
+        {'label': 'Difference', 'value': '1,234.50'},
+        {'label': 'Lift', 'value': '-12.3%'},
+        {'label': 'Significance', 'value': 'Not significant'},
+    ]
 
     with app_module.app.test_request_context('/'):
         flask.session['language'] = 'ko'
-        assert app_module.stat_value(True) == '유의함'
-        assert app_module.stat_value(False) == '유의하지 않음'
+        korean = app_module._stat_cards({'p_value': 4.5648935e-05, 'significant': True})
+
+    assert korean == [
+        {'label': 'p 값', 'value': '4.56e-05'},
+        {'label': '통계적 유의성', 'value': '유의함'},
+    ]
+
+
+def test_every_tab_metric_has_a_label(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+    queries = {
+        'timeseries': 'date_col=Date&value_col=Revenue',
+        'outlier': 'value_col=Revenue',
+        'correlation': 'target_col=Revenue',
+        'rfm': 'customer_col=Customer&date_col=Date&value_col=Revenue',
+        'pareto': 'category_col=Category&value_col=Revenue',
+        'cohort': 'customer_col=Customer&date_col=Date',
+        'abtest': 'group_col=Variant&value_col=Revenue',
+    }
+
+    for tab, query in queries.items():
+        response = client.get(f'/analytics/{dataset.id}?tab={tab}&{query}')
+
+        assert response.status_code == 200
+        body = response.get_data(as_text=True)
+        for key in app_module.ANALYTICS_STAT_LABELS:
+            assert key.replace('_', ' ').upper() not in body

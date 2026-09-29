@@ -102,6 +102,10 @@
 
 *Each tab starts with a “What is this analysis?” panel describing the method, the columns it needs and how to read the result (KO/EN), with a link to the matching manual section. The print/PDF report embeds the same explanation so recipients can interpret it without extra context.*
 
+차트 위의 **주요 지표** 카드는 라벨이 현재 언어(한/영)로 표시되고, 값은 인사이트 문장과 같은 자릿수 규칙을 씁니다 — 건수는 정수, 비율은 소수 1자리 `%`, p 값은 소수 4자리(아주 작으면 `4.56e-05` 지수 표기), 유의성은 `유의함 / 유의하지 않음`. Excel 내보내기는 화면 서식이 아니라 원래 숫자·불리언 값을 그대로 담습니다.
+
+*The **Key metrics** cards use localized labels and the same precision rules as the written insights — counts as integers, shares with one decimal `%`, p-values with four decimals (scientific notation such as `4.56e-05` when tiny) and significance as Significant / Not significant. The Excel export keeps the raw numeric and boolean values instead of the on-screen formatting.*
+
 ### 시계열 분석 (Time series)
 
 | 설정 | 설명 |

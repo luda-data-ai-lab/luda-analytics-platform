@@ -173,6 +173,11 @@
                            if ko else
                            'Every tab opens with a [What is this analysis?] panel that states what the method shows, which columns it needs and how to read the result, with a link back to the matching section of this manual.' }}
                     </p>
+                    <p>
+                        {{ '차트 위의 [주요 지표] 카드는 라벨이 현재 언어로 표시되고, 값은 인사이트 문장과 같은 자릿수로 맞춰집니다 (비율은 소수 1자리, p 값은 소수 4자리, 아주 작은 값은 지수 표기). Excel 내보내기에는 화면 서식 없이 원래 값이 담깁니다.'
+                           if ko else
+                           'The [Key metrics] cards above the charts use localized labels and the same precision as the written insights (one decimal for shares, four for p-values, scientific notation when tiny). The Excel export keeps the raw values without the on-screen formatting.' }}
+                    </p>
                     <ul class="manual-list">
                         <li><strong>{{ '시계열 분석' if ko else 'Time series' }}:</strong>
                             {{ '날짜·값 컬럼과 주기(일/주/월/분기/년)·집계 방식을 고르면 추세선, 이동평균, 전기 대비 증감률(MoM), 전년 동기 대비(YoY), 선형 추세+계절 성분 기반 예측(95% 구간)을 계산합니다.'

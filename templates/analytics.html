@@ -289,21 +289,17 @@
     </div>
     {% endif %}
 
-    {% if stats %}
+    {% if stat_cards %}
     <div class="row g-3 mb-4">
-        {% for key, value in stats.items() %}
-        {% if value is not none %}
+        {% for card in stat_cards %}
         <div class="col-6 col-lg-3">
             <div class="card h-100">
                 <div class="card-body py-3">
-                    <div class="text-muted small text-uppercase">{{ key.replace('_', ' ') }}</div>
-                    <div class="fs-5 fw-bold">
-                        {{ value | stat_value }}
-                    </div>
+                    <div class="text-muted small">{{ card.label }}</div>
+                    <div class="fs-5 fw-bold">{{ card.value }}</div>
                 </div>
             </div>
         </div>
-        {% endif %}
         {% endfor %}
     </div>
     {% endif %}

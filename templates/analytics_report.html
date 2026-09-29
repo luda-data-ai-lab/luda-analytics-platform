@@ -54,17 +54,15 @@
     </ul>
     {% endif %}
 
-    {% if stats %}
+    {% if stat_cards %}
     <h5 class="mt-4">{{ '주요 지표' if ko else 'Key metrics' }}</h5>
     <table class="table table-sm w-auto">
         <tbody>
-            {% for key, value in stats.items() %}
-            {% if value is not none %}
+            {% for card in stat_cards %}
             <tr>
-                <th class="text-muted text-uppercase small pe-4">{{ key.replace('_', ' ') }}</th>
-                <td>{{ value | stat_value }}</td>
+                <th class="text-muted small pe-4">{{ card.label }}</th>
+                <td>{{ card.value }}</td>
             </tr>
-            {% endif %}
             {% endfor %}
         </tbody>
     </table>
