@@ -259,12 +259,12 @@
                            'Template analysis takes a data type (sales, crop yield, marketing, customer, …) and automatically produces KPIs, charts and written insights.' }}
                     </p>
                     <ul class="manual-list">
-                        <li><strong>{{ '빠른 분석' if ko else 'Quick Analysis' }}:</strong>
-                            {{ '표준 템플릿 양식을 내려받아 채운 뒤 올리면 즉시 분석됩니다.'
-                               if ko else 'download a standard template, fill it in, upload it and get the analysis immediately.' }}</li>
-                        <li><strong>{{ '전문 분석' if ko else 'Professional Analysis' }}:</strong>
-                            {{ '보유한 파일을 올리고 데이터 유형을 지정해 분석합니다. [분석 결과 저장]을 켜면 대시보드에도 데이터셋으로 남습니다.'
-                               if ko else 'upload your own file, pick the data type, and optionally tick “save dataset” to keep it on the dashboard.' }}</li>
+                        <li><strong>{{ '파일 업로드' if ko else 'Upload' }}:</strong>
+                            {{ '샘플 양식을 내려받아 채우거나 보유한 CSV·Excel 파일을 그대로 올리면 됩니다. 템플릿 유형을 고르지 않으면 컬럼 구성으로 자동 감지합니다.'
+                               if ko else 'download a sample sheet or upload your own CSV/Excel file. If you leave the template type unselected, it is detected from the columns.' }}</li>
+                        <li><strong>{{ '이전 분석' if ko else 'Previous analyses' }}:</strong>
+                            {{ '같은 페이지 아래쪽 목록에서 지난 업로드를 다시 열거나 [고급 분석]으로 이어갈 수 있습니다.'
+                               if ko else 'the list at the bottom of the same page reopens earlier uploads or continues into [Advanced Analysis].' }}</li>
                     </ul>
                     <p class="mb-0">
                         {{ '매출 데이터의 경우 일별 매출, 지역별 매출, 제품 비중, 카테고리별 매출, 수량 대비 매출, 일별 수량 등 6개 차트가 생성됩니다.'
