@@ -218,30 +218,81 @@
                             <tbody>
                                 <tr>
                                     <td>{{ '시계열 분석' if ko else 'Time series' }}</td>
-                                    <td>{{ '매출 데이터 — 날짜 <code>Date</code>, 값 <code>Revenue</code>, 주기 [월], 집계 [합계], 이동평균 3, 예측 3'
+                                    <td>{{ ('매출 데이터 — 날짜 <code>Date</code>, 값 <code>Revenue</code>, 주기 [월], 집계 [합계], 이동평균 3, 예측 3'
                                            if ko else
-                                           'Sales sample — date <code>Date</code>, value <code>Revenue</code>, monthly frequency, sum, moving average 3, forecast 3' }}</td>
+                                           'Sales sample — date <code>Date</code>, value <code>Revenue</code>, monthly frequency, sum, moving average 3, forecast 3') | safe }}</td>
                                     <td>{{ '월별 매출 추세선과 3개월 이동평균, 앞으로 3개월 예측 구간이 그려집니다. MoM 막대가 +12% 로 나오면 “전월보다 12% 늘었다”, YoY 는 작년 같은 달과의 비교입니다. 예측 구간이 넓다면 과거 변동이 커서 신뢰도가 낮다는 뜻입니다.'
                                            if ko else
                                            'A monthly revenue trend with a 3-month moving average and a 3-month forecast band. A +12% MoM bar means 12% above the previous month; YoY compares the same month last year. A wide forecast band means past volatility was high, so trust it less.' }}</td>
                                 </tr>
                                 <tr>
                                     <td>{{ '이상치 탐지' if ko else 'Outlier detection' }}</td>
-                                    <td>{{ '매출 데이터 — 값 <code>Revenue</code>, 방법 [IQR] 1.5, 그룹 <code>Region</code>'
+                                    <td>{{ ('매출 데이터 — 값 <code>Revenue</code>, 방법 [IQR] 1.5, 그룹 <code>Region</code>'
                                            if ko else
-                                           'Sales sample — value <code>Revenue</code>, method [IQR] 1.5, group <code>Region</code>' }}</td>
+                                           'Sales sample — value <code>Revenue</code>, method [IQR] 1.5, group <code>Region</code>') | safe }}</td>
                                     <td>{{ '정상 범위를 벗어난 거래가 표로 나오고, 지역별 이상치 건수 막대가 함께 표시됩니다. 특정 지역에 이상치가 몰려 있으면 입력 오류인지 실제 대형 거래인지 원본을 확인하고, 건수가 너무 많으면 임계값을 3.0 으로 올려 보세요.'
                                            if ko else
                                            'Rows outside the normal range are listed and a bar chart shows how many outliers each region contributes. If one region dominates, check the source for entry errors vs. genuine large deals; if too many rows are flagged, raise the threshold to 3.0.' }}</td>
                                 </tr>
                                 <tr>
                                     <td>{{ '상관 · 기여도' if ko else 'Correlation & drivers' }}</td>
-                                    <td>{{ '작물 수확량 데이터 — 타깃 <code>Crop_Yield_kg</code> (설명 변수: <code>Rainfall_mm</code>, <code>Temperature_C</code>, <code>Fertilizer_kg</code>, <code>Irrigation_hours</code>)'
+                                    <td>{{ ('작물 수확량 데이터 — 타깃 <code>Crop_Yield_kg</code> (설명 변수: <code>Rainfall_mm</code>, <code>Temperature_C</code>, <code>Fertilizer_kg</code>, <code>Irrigation_hours</code>)'
                                            if ko else
-                                           'Crop yield sample — target <code>Crop_Yield_kg</code> (drivers: <code>Rainfall_mm</code>, <code>Temperature_C</code>, <code>Fertilizer_kg</code>, <code>Irrigation_hours</code>)' }}</td>
+                                           'Crop yield sample — target <code>Crop_Yield_kg</code> (drivers: <code>Rainfall_mm</code>, <code>Temperature_C</code>, <code>Fertilizer_kg</code>, <code>Irrigation_hours</code>)') | safe }}</td>
                                     <td>{{ '히트맵에서 강수량·비료량과 수확량의 상관을 보고, 기여도 표에서 β 가 가장 큰 변수를 찾습니다. β 0.45 는 “그 변수가 1 표준편차 늘면 수확량이 0.45 표준편차 늘어난다”는 뜻이며, R² 0.6 이면 변동의 60% 를 설명한다는 의미입니다(인과관계 증명은 아님).'
                                            if ko else
                                            'Read the heatmap for how rainfall and fertiliser relate to yield, then find the largest β in the driver table. β = 0.45 means one standard deviation more of that driver moves yield by 0.45 standard deviations, and R² = 0.6 means 60% of the variation is explained (not proof of causation).' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <h3 class="manual-subheading">{{ '실무에서 언제 쓰고 무엇을 알게 되나요?' if ko else 'When to use it and what you learn' }}</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm manual-table">
+                            <thead>
+                                <tr>
+                                    <th>{{ '기법' if ko else 'Method' }}</th>
+                                    <th>{{ '실 사용 예' if ko else 'Real-world use' }}</th>
+                                    <th>{{ '얻을 수 있는 인사이트' if ko else 'Insight you gain' }}</th>
+                                    <th>{{ '이어지는 의사결정' if ko else 'Decision it supports' }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{{ '시계열 분석' if ko else 'Time series' }}</td>
+                                    <td>{{ '월간 매출 보고, 생산량·불량률 추이 관리, 방문자 수 모니터링, 다음 분기 목표 수립'
+                                           if ko else
+                                           'Monthly revenue reporting, tracking output or defect rates, traffic monitoring, setting next-quarter targets' }}</td>
+                                    <td>{{ '“지금 오르고 있는가, 꺾였는가” — 계절성 때문에 매년 반복되는 변동인지, 이번에만 생긴 변화인지 구분됩니다(MoM 은 계절 영향을 받고 YoY 는 계절을 상쇄).'
+                                           if ko else
+                                           'Whether the level is genuinely rising or has turned, and whether a swing is the usual seasonal pattern or new (MoM carries seasonality, YoY cancels it out).' }}</td>
+                                    <td>{{ '재고·인력 사전 확보, 목표치 설정, 이상 신호가 보이면 원인 조사 착수'
+                                           if ko else
+                                           'Pre-book stock and staffing, set targets, and start a root-cause review when the trend breaks.' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ '이상치 탐지' if ko else 'Outlier detection' }}</td>
+                                    <td>{{ '정산 전 데이터 검수(단위 오입력·중복 전표), 이례적 대형 거래 확인, 설비 센서값 점검, 비용 급증 구간 찾기'
+                                           if ko else
+                                           'Pre-close data QA (unit typos, duplicate entries), spotting unusually large deals, sensor checks, finding cost spikes' }}</td>
+                                    <td>{{ '평균만 보면 묻히는 소수의 극단값이 드러납니다 — 데이터 품질 문제인지, 특정 지역·담당자·기간에 몰린 실제 현상인지 구분됩니다.'
+                                           if ko else
+                                           'Extreme rows that averages hide surface here, separating data-quality problems from a real concentration in one region, owner or period.' }}</td>
+                                    <td>{{ '원본 수정 또는 분석에서 제외, 대형 거래는 별도 관리, 반복되면 입력 검증 규칙 추가'
+                                           if ko else
+                                           'Fix or exclude the row, manage genuine large deals separately, and add input validation when it recurs.' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ '상관 · 기여도' if ko else 'Correlation & drivers' }}</td>
+                                    <td>{{ '광고비·할인율·가격 중 매출에 가장 연결된 요인 찾기, 수확량에 영향이 큰 재배 조건 비교, 만족도 점수의 구성 요인 분석'
+                                           if ko else
+                                           'Finding which of ad spend, discount or price tracks revenue most, comparing growing conditions that move yield, decomposing satisfaction scores' }}</td>
+                                    <td>{{ '여러 후보 요인의 영향력 순위와 설명력(R²) — 어디를 먼저 실험할지 우선순위가 정해집니다. 인과관계는 증명되지 않으므로 A/B 검정으로 확인해야 합니다.'
+                                           if ko else
+                                           'A ranking of candidate drivers plus how much they explain (R²), which sets your experiment priority. It is not causal proof — confirm with an A/B test.' }}</td>
+                                    <td>{{ '영향이 큰 변수부터 예산·자원 재배분, 다음 A/B 실험 주제 선정, 영향 없는 지표는 보고서에서 정리'
+                                           if ko else
+                                           'Reallocate budget to the strongest drivers, pick the next A/B experiment, and drop non-moving metrics from reports.' }}</td>
                                 </tr>
                             </tbody>
                         </table>
@@ -299,39 +350,102 @@
                             <tbody>
                                 <tr>
                                     <td>{{ 'RFM 세그먼트' if ko else 'RFM segmentation' }}</td>
-                                    <td>{{ '고객 거래 내역 — 고객 <code>Customer_ID</code>, 날짜 <code>주문일</code>, 금액 <code>결제금액</code> (샘플 매출 데이터로 연습하려면 고객 자리에 <code>Product</code> 를 넣어 상품별로 볼 수 있습니다)'
+                                    <td>{{ ('고객 거래 내역 — 고객 <code>Customer_ID</code>, 날짜 <code>주문일</code>, 금액 <code>결제금액</code> (샘플 매출 데이터로 연습하려면 고객 자리에 <code>Product</code> 를 넣어 상품별로 볼 수 있습니다)'
                                            if ko else
-                                           'Transaction data — customer <code>Customer_ID</code>, date <code>Order_Date</code>, amount <code>Amount</code> (to practise with the sales sample, use <code>Product</code> as the identifier to get a per-product view)' }}</td>
+                                           'Transaction data — customer <code>Customer_ID</code>, date <code>Order_Date</code>, amount <code>Amount</code> (to practise with the sales sample, use <code>Product</code> as the identifier to get a per-product view)') | safe }}</td>
                                     <td>{{ '고객마다 R/F/M 1~5점과 세그먼트가 붙습니다. R5·F5·M5 는 최근에 자주 많이 산 [충성 우수 고객]이라 리텐션 대상이고, R1·F4 처럼 예전엔 자주 샀는데 최근이 뜸한 고객은 [이탈 위험]이라 윈백 캠페인 대상입니다. 점수는 업로드한 데이터 안에서의 상대 순위입니다.'
                                            if ko else
                                            'Each customer gets R/F/M scores of 1-5 and a segment. R5/F5/M5 are Champions to retain; someone like R1/F4 used to buy often but has gone quiet, so they land in At risk and belong in a win-back campaign. Scores are relative ranks inside the uploaded data.' }}</td>
                                 </tr>
                                 <tr>
                                     <td>{{ '파레토 (ABC)' if ko else 'Pareto (ABC)' }}</td>
-                                    <td>{{ '매출 데이터 — 분류 <code>Product</code>, 값 <code>Revenue</code>'
+                                    <td>{{ ('매출 데이터 — 분류 <code>Product</code>, 값 <code>Revenue</code>'
                                            if ko else
-                                           'Sales sample — category <code>Product</code>, value <code>Revenue</code>' }}</td>
-                                    <td>{{ '상품이 매출 기여도 순으로 정렬되고 누적선이 그려집니다. A 등급 상품 3개가 누적 80% 를 차지한다면 재고·프로모션을 이 3개에 먼저 쓰고, C 등급의 긴 꼬리는 품목 축소를 검토하는 식으로 씁니다. 분류를 <code>Region</code> 으로 바꾸면 지역 집중도를 볼 수 있습니다.'
+                                           'Sales sample — category <code>Product</code>, value <code>Revenue</code>') | safe }}</td>
+                                    <td>{{ ('상품이 매출 기여도 순으로 정렬되고 누적선이 그려집니다. A 등급 상품 3개가 누적 80% 를 차지한다면 재고·프로모션을 이 3개에 먼저 쓰고, C 등급의 긴 꼬리는 품목 축소를 검토하는 식으로 씁니다. 분류를 <code>Region</code> 으로 바꾸면 지역 집중도를 볼 수 있습니다.'
                                            if ko else
-                                           'Products are ranked by contribution with a cumulative line. If three A-grade products make up 80% of revenue, prioritise stock and promotion there and review the long C tail for pruning. Switch the category to <code>Region</code> to see geographic concentration instead.' }}</td>
+                                           'Products are ranked by contribution with a cumulative line. If three A-grade products make up 80% of revenue, prioritise stock and promotion there and review the long C tail for pruning. Switch the category to <code>Region</code> to see geographic concentration instead.') | safe }}</td>
                                 </tr>
                                 <tr>
                                     <td>{{ '코호트 리텐션' if ko else 'Cohort retention' }}</td>
-                                    <td>{{ '고객 거래 내역 — 고객 <code>Customer_ID</code>, 날짜 <code>주문일</code>, 코호트 주기 [월], 기간 6'
+                                    <td>{{ ('고객 거래 내역 — 고객 <code>Customer_ID</code>, 날짜 <code>주문일</code>, 코호트 주기 [월], 기간 6'
                                            if ko else
-                                           'Transaction data — customer <code>Customer_ID</code>, date <code>Order_Date</code>, monthly cohorts, 6 periods' }}</td>
+                                           'Transaction data — customer <code>Customer_ID</code>, date <code>Order_Date</code>, monthly cohorts, 6 periods') | safe }}</td>
                                     <td>{{ '“1월에 처음 산 고객 중 다음 달에도 산 비율”이 히트맵의 1월 행 +1 칸에 표시됩니다. +1 이 40% → +2 가 25% 처럼 떨어지는 폭이 크면 초기 온보딩이 약한 것이고, 최근 코호트의 오른쪽 빈칸은 아직 기간이 지나지 않아 비어 있는 것입니다(0% 아님).'
                                            if ko else
                                            'The +1 cell of the January row is “share of customers who first bought in January and bought again the next month”. A steep drop such as 40% → 25% points to weak onboarding; blank cells on the right of recent cohorts mean the period has not elapsed yet (not 0%).' }}</td>
                                 </tr>
                                 <tr>
                                     <td>{{ 'A/B 유의성 검정' if ko else 'A/B significance test' }}</td>
-                                    <td>{{ '마케팅 캠페인 데이터 — 그룹 <code>Channel</code>, 지표 <code>Revenue</code>, 검정 [평균 비교]'
+                                    <td>{{ ('마케팅 캠페인 데이터 — 그룹 <code>Channel</code>, 지표 <code>Revenue</code>, 검정 [평균 비교]'
                                            if ko else
-                                           'Marketing sample — group <code>Channel</code>, metric <code>Revenue</code>, mean comparison' }}</td>
+                                           'Marketing sample — group <code>Channel</code>, metric <code>Revenue</code>, mean comparison') | safe }}</td>
                                     <td>{{ '두 채널의 평균 매출 차이와 상승률, 95% 신뢰구간, p-value 가 나옵니다. p = 0.03 이고 신뢰구간이 0 을 포함하지 않으면 차이를 우연으로 보기 어렵다는 뜻이고, p = 0.4 면 “차이가 없다”가 아니라 “데이터로는 판단할 수 없다”입니다. 채널이 3개 이상이면 건수가 많은 두 개를 자동 비교합니다.'
                                            if ko else
                                            'You get the difference in average revenue between two channels, the lift, a 95% confidence interval and a p-value. p = 0.03 with an interval excluding 0 means the gap is unlikely to be chance; p = 0.4 does not mean “no difference”, it means the data cannot tell. With three or more channels the two largest are compared automatically.' }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <h3 class="manual-subheading">{{ '실무에서 언제 쓰고 무엇을 알게 되나요?' if ko else 'When to use it and what you learn' }}</h3>
+                    <div class="table-responsive">
+                        <table class="table table-sm manual-table">
+                            <thead>
+                                <tr>
+                                    <th>{{ '기법' if ko else 'Method' }}</th>
+                                    <th>{{ '실 사용 예' if ko else 'Real-world use' }}</th>
+                                    <th>{{ '얻을 수 있는 인사이트' if ko else 'Insight you gain' }}</th>
+                                    <th>{{ '이어지는 의사결정' if ko else 'Decision it supports' }}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>{{ 'RFM 세그먼트' if ko else 'RFM segmentation' }}</td>
+                                    <td>{{ '쇼핑몰 재구매 캠페인 대상 선정, B2B 거래처 등급 관리, 쿠폰·포인트 예산 배분, 휴면 고객 되살리기'
+                                           if ko else
+                                           'Choosing targets for a repeat-purchase campaign, grading B2B accounts, allocating coupon budget, waking up dormant customers' }}</td>
+                                    <td>{{ '“전체 고객”이라는 덩어리가 행동 기준 그룹으로 쪼개집니다 — 매출은 큰데 최근 안 사는 고객(이탈 위험)처럼 겉으로 안 보이는 위험군이 드러납니다.'
+                                           if ko else
+                                           'One undifferentiated customer base splits into behaviour-based groups, exposing hidden risk such as high-spend customers who have stopped buying (At risk).' }}</td>
+                                    <td>{{ '세그먼트별 다른 메시지·할인율 적용, 충성 고객엔 유지 혜택, 이탈 위험엔 윈백, 휴면엔 저비용 채널만 사용'
+                                           if ko else
+                                           'Use different messaging and discounts per segment: retention perks for Champions, win-back for At risk, low-cost channels only for Hibernating.' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ '파레토 (ABC)' if ko else 'Pareto (ABC)' }}</td>
+                                    <td>{{ '상품 SKU 정리, 거래처·지역 집중도 점검, 창고 진열 우선순위, 클레임·불량 원인 유형 우선순위'
+                                           if ko else
+                                           'Rationalising SKUs, checking account or region concentration, warehouse slotting, prioritising complaint or defect types' }}</td>
+                                    <td>{{ '소수 항목이 전체의 대부분을 만든다는 구조와, 그 “소수”가 구체적으로 누구인지 알 수 있습니다. 동시에 A 등급 의존도가 높다면 집중 리스크도 보입니다.'
+                                           if ko else
+                                           'Not just that a few items drive most of the total, but exactly which ones — and how exposed you are if those A items falter.' }}</td>
+                                    <td>{{ 'A 등급에 재고·프로모션·영업 인력 집중, C 등급 긴 꼬리는 단종·묶음 판매 검토, 특정 거래처 의존이 크면 신규 확보'
+                                           if ko else
+                                           'Focus stock, promotion and sales effort on A items, review the C tail for pruning or bundling, and diversify when one account dominates.' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ '코호트 리텐션' if ko else 'Cohort retention' }}</td>
+                                    <td>{{ '신규 고객 온보딩 개선 효과 측정, 구독·앱 이탈 진단, 프로모션으로 유입된 고객의 질 비교, 정기배송 유지율 관리'
+                                           if ko else
+                                           'Measuring onboarding changes, diagnosing subscription or app churn, comparing the quality of promo-acquired cohorts, tracking subscription renewals' }}</td>
+                                    <td>{{ '이탈이 “언제” 일어나는지 시점이 보입니다. 또 6월 가입 코호트가 5월보다 유지율이 높다면 그 사이 바꾼 것이 효과가 있었다는 증거가 됩니다.'
+                                           if ko else
+                                           'It shows when churn happens, and if the June cohort retains better than May it is evidence that whatever changed in between worked.' }}</td>
+                                    <td>{{ '이탈이 몰리는 시점에 맞춘 안내·리마인드 설계, 성과 좋은 유입 경로에 예산 이동, 할인 유입 고객은 별도 관리'
+                                           if ko else
+                                           'Time nudges to the drop-off point, shift budget to channels whose cohorts retain, and handle discount-acquired customers separately.' }}</td>
+                                </tr>
+                                <tr>
+                                    <td>{{ 'A/B 유의성 검정' if ko else 'A/B significance test' }}</td>
+                                    <td>{{ '두 가지 랜딩페이지·메일 제목 비교, 신규 진열/가격 시범 적용 매장 vs 기존 매장, 채널별 캠페인 성과 비교'
+                                           if ko else
+                                           'Comparing two landing pages or email subjects, pilot stores vs. control stores, campaign performance by channel' }}</td>
+                                    <td>{{ '“B 가 더 좋아 보인다”가 우연으로 설명될 수 있는 차이인지 판별됩니다. 신뢰구간은 실제 효과가 어느 범위일지(예: +2%~+15%) 알려 줘 기대치를 현실화합니다.'
+                                           if ko else
+                                           'Whether “B looks better” could just be noise, and from the interval how large the real effect plausibly is (e.g. +2% to +15%), which keeps expectations honest.' }}</td>
+                                    <td>{{ '유의하면 전면 적용, 유의하지 않으면 표본을 더 모으거나 실험 중단, 효과 크기가 작으면 비용 대비 효익 재검토'
+                                           if ko else
+                                           'Roll out when significant, collect more data or stop when not, and re-check cost/benefit when the effect is small.' }}</td>
                                 </tr>
                             </tbody>
                         </table>
