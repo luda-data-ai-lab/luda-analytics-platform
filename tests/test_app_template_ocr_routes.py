@@ -365,10 +365,24 @@ def test_ocr_save_denies_other_users(logged_in_client, db_session):
     assert Dataset.query.count() == 0
 
 
-def test_uploaded_file_serves_from_upload_folder(logged_in_client, tmp_path):
+def test_uploaded_file_serves_own_file(logged_in_client, user, db_session, tmp_path):
     (tmp_path / 'scan.png').write_bytes(b'image-bytes')
+    _make_ocr_session(db_session, user)
 
     response = logged_in_client.get('/uploads/scan.png')
 
     assert response.status_code == 200
     assert response.data == b'image-bytes'
+
+
+def test_uploaded_file_denies_other_users_file(logged_in_client, db_session, tmp_path):
+    (tmp_path / 'scan.png').write_bytes(b'image-bytes')
+    other = User(email='other-upload@example.com', name='다른 사용자')
+    other.set_password('pw')
+    db_session.session.add(other)
+    db_session.session.flush()
+    _make_ocr_session(db_session, other)
+
+    response = logged_in_client.get('/uploads/scan.png')
+
+    assert '/dashboard' in response.headers['Location']
