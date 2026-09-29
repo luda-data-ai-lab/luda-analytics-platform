@@ -386,7 +386,7 @@ def test_static_pages_require_login(client):
 def test_examples_and_template_pages_render(client, user):
     _login(client)
 
-    for path in ('/examples', '/template_analysis', '/ocr/scan', '/template'):
+    for path in ('/examples', '/template_analysis', '/ocr/scan'):
         assert client.get(path).status_code == 200
 
 

@@ -127,6 +127,10 @@
                     </div>
                 </div>
                 <div class="card-footer bg-light">
+                    <a href="{{ url_for('download_sample_template') }}" class="btn btn-sm btn-outline-success w-100 mb-2">
+                        <i class="bi bi-file-earmark-excel"></i>
+                        {% if current_language == 'ko' %}예시 데이터 엑셀 받기{% else %}Download sample Excel{% endif %}
+                    </a>
                     <small class="text-muted">
                         <i class="bi bi-info-circle"></i>
                         {% if current_language == 'ko' %}
@@ -156,10 +160,9 @@
                             <label class="form-label fw-bold">
                                 <i class="bi bi-file-earmark-excel text-success"></i>
                                 {% if current_language == 'ko' %}템플릿 선택{% else %}Select Template{% endif %}
-                                <span class="text-danger">*</span>
                             </label>
-                            <select class="form-select" name="template_type" required id="templateSelect">
-                                <option value="">{% if current_language == 'ko' %}템플릿 선택...{% else %}Select template...{% endif %}</option>
+                            <select class="form-select" name="template_type" id="templateSelect">
+                                <option value="">{% if current_language == 'ko' %}자동 감지 (컬럼으로 판단){% else %}Auto-detect from columns{% endif %}</option>
                                 <option value="crop_yield">
                                     🌾 {% if current_language == 'ko' %}곡물 생산량 분석{% else %}Crop Yield Analysis{% endif %}
                                 </option>
@@ -175,9 +178,9 @@
                             </select>
                             <div class="form-text">
                                 {% if current_language == 'ko' %}
-                                    업로드할 데이터의 템플릿 유형을 선택하세요
+                                    선택하지 않으면 컬럼 구성으로 유형을 자동 감지합니다
                                 {% else %}
-                                    Select the template type for your data
+                                    Leave it on auto-detect to infer the type from the columns
                                 {% endif %}
                             </div>
                         </div>
@@ -185,20 +188,21 @@
                         <div class="mb-3">
                             <label class="form-label fw-bold">
                                 <i class="bi bi-file-earmark-arrow-up text-primary"></i>
-                                {% if current_language == 'ko' %}CSV 파일{% else %}CSV File{% endif %}
+                                {% if current_language == 'ko' %}데이터 파일 (CSV · Excel){% else %}Data file (CSV or Excel){% endif %}
                                 <span class="text-danger">*</span>
                             </label>
-                            <input type="file" class="form-control" name="file" accept=".csv" required id="fileInput">
+                            <input type="file" class="form-control" name="file" accept=".csv,.xlsx,.xls" required id="fileInput">
                             <div class="form-text">
                                 {% if current_language == 'ko' %}
-                                    템플릿 형식에 맞춰 작성된 CSV 파일을 업로드하세요
+                                    템플릿 형식에 맞춰 작성한 csv · xlsx · xls 파일을 업로드하세요
                                 {% else %}
-                                    Upload CSV file matching the template format
+                                    Upload a csv, xlsx or xls file matching the template format
                                 {% endif %}
                             </div>
                         </div>
 
                         <!-- 분석 옵션 -->
+                        <input type="hidden" name="analysis_options" value="1">
                         <div class="card mb-3 bg-light border-0">
                             <div class="card-body">
                                 <h6 class="card-title">
@@ -264,9 +268,9 @@
                             <strong>{% if current_language == 'ko' %}파일 업로드{% else %}Upload File{% endif %}</strong>
                             <p class="text-muted small mb-0">
                                 {% if current_language == 'ko' %}
-                                    작성한 파일을 CSV 형식으로 저장하고 위 폼에서 업로드하세요
+                                    작성한 파일을 CSV 또는 Excel로 저장하고 위 폼에서 업로드하세요
                                 {% else %}
-                                    Save the file as CSV and upload using the form above
+                                    Save the file as CSV or Excel and upload using the form above
                                 {% endif %}
                             </p>
                         </li>
@@ -294,6 +298,12 @@
                     </small>
                 </div>
             </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            {% include '_template_history.html' %}
         </div>
     </div>
 </div>

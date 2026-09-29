@@ -1,0 +1,84 @@
+            <!-- 이전 분석 목록 -->
+            <div class="card shadow-sm border-0">
+                <div class="card-header bg-white border-bottom py-3">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="bi bi-clock-history text-primary"></i>
+                            {% if current_language == 'ko' %}이전 분석 내역{% else %}Previous Analysis{% endif %}
+                        </h5>
+                        {% if datasets %}
+                        <span class="badge bg-primary rounded-pill">{{ datasets|length }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if datasets %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="px-4 py-3">{% if current_language == 'ko' %}이름{% else %}Name{% endif %}</th>
+                                    <th class="px-3 py-3">{% if current_language == 'ko' %}파일명{% else %}Filename{% endif %}</th>
+                                    <th class="px-3 py-3 text-center">{% if current_language == 'ko' %}행 수{% else %}Rows{% endif %}</th>
+                                    <th class="px-3 py-3">{% if current_language == 'ko' %}업로드 일시{% else %}Uploaded{% endif %}</th>
+                                    <th class="px-3 py-3 text-end">{% if current_language == 'ko' %}작업{% else %}Actions{% endif %}</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for dataset in datasets %}
+                                <tr>
+                                    <td class="px-4 py-3">
+                                        <i class="bi bi-file-earmark-spreadsheet text-success me-2"></i>
+                                        {{ dataset.name }}
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <small class="text-muted">{{ dataset.filename }}</small>
+                                    </td>
+                                    <td class="px-3 py-3 text-center">
+                                        <span class="badge bg-light text-dark">{{ "{:,}".format(dataset.row_count) }}</span>
+                                    </td>
+                                    <td class="px-3 py-3">
+                                        <small>{{ dataset.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                                    </td>
+                                    <td class="px-3 py-3 text-end">
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('view_template_analysis', dataset_id=dataset.id) }}" class="btn btn-sm btn-primary">
+                                                <i class="bi bi-graph-up"></i>
+                                                {% if current_language == 'ko' %}분석 보기{% else %}View{% endif %}
+                                            </a>
+                                            <a href="{{ url_for('advanced_analytics', dataset_id=dataset.id) }}" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-graph-up-arrow"></i>
+                                                {% if current_language == 'ko' %}고급 분석{% else %}Advanced{% endif %}
+                                            </a>
+                                            <form action="{{ url_for('delete_dataset', dataset_id=dataset.id) }}" method="POST" style="display: inline;">
+                                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" onclick="return confirm('{% if current_language == 'ko' %}정말 삭제하시겠습니까?{% else %}Are you sure you want to delete?{% endif %}')">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <div class="mb-4">
+                            <i class="bi bi-inbox" style="font-size: 3rem; color: #dee2e6;"></i>
+                        </div>
+                        <h5 class="text-muted mb-2">
+                            {% if current_language == 'ko' %}아직 분석 내역이 없습니다{% else %}No analysis yet{% endif %}
+                        </h5>
+                        <p class="text-muted">
+                            {% if current_language == 'ko' %}
+                                위의 템플릿을 다운로드하여 시작하세요
+                            {% else %}
+                                Download the template above to get started
+                            {% endif %}
+                        </p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>

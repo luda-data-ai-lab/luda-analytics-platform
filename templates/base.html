@@ -42,25 +42,11 @@
                             {% if current_language == 'ko' %}업로드{% else %}Upload{% endif %}
                         </a>
                     </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle {% if endpoint in ['template_dashboard', 'template_analysis', 'template_result'] %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <li class="nav-item">
+                        <a class="nav-link {% if endpoint in ['template_analysis', 'view_template_analysis'] %}active{% endif %}" href="{{ url_for('template_analysis') }}">
                             <i class="bi bi-magic"></i>
                             {% if current_language == 'ko' %}템플릿 분석{% else %}Template Analysis{% endif %}
                         </a>
-                        <ul class="dropdown-menu">
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('template_dashboard') }}">
-                                    <i class="bi bi-lightning-charge"></i>
-                                    {% if current_language == 'ko' %}빠른 분석{% else %}Quick Analysis{% endif %}
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="{{ url_for('template_analysis') }}">
-                                    <i class="bi bi-graph-up-arrow"></i>
-                                    {% if current_language == 'ko' %}전문 분석{% else %}Professional Analysis{% endif %}
-                                </a>
-                            </li>
-                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if endpoint in ['examples', 'crop_example'] %}active{% endif %}" href="{{ url_for('examples') }}">

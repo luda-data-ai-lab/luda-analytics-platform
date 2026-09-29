@@ -797,16 +797,11 @@ def generate_chart():
         return jsonify({'error': get_message('서버 오류로 차트를 생성하지 못했습니다.',
                                              'The chart could not be generated due to a server error.')}), 500
 
-# 템플릿 기반 시각화 - 메인 페이지
+# 구 "빠른 분석" 입구 — 통합된 템플릿 분석 페이지로 이동
 @app.route('/template')
 @login_required
 def template_dashboard():
-    # 사용자의 템플릿 기반 데이터셋 조회
-    template_datasets = Dataset.query.filter_by(
-        user_id=current_user.id,
-        is_template=True
-    ).order_by(Dataset.uploaded_at.desc()).all()
-    return render_template('template_dashboard.html', datasets=template_datasets)
+    return redirect(url_for('template_analysis'))
 
 # 템플릿 샘플 다운로드
 @app.route('/template/download_sample')
@@ -888,60 +883,13 @@ def download_sample_template():
         download_name='sales_template_sample.xlsx'
     )
 
-# 템플릿 업로드 및 자동 분석
-@app.route('/template/upload', methods=['POST'])
-@login_required
-def upload_template():
-    if 'file' not in request.files:
-        flash_msg('no_file_selected', 'danger')
-        return redirect(url_for('template_dashboard'))
-
-    file = request.files['file']
-
-    if file.filename == '':
-        flash_msg('no_file_selected', 'danger')
-        return redirect(url_for('template_dashboard'))
-
-    if file and allowed_file(file.filename):
-        try:
-            filepath, timestamp = save_upload(file, current_user.id, 'template')
-        except OSError:
-            logger.exception("템플릿 파일 저장 실패: %s", file.filename)
-            flash_msg('save_failed', 'danger')
-            return redirect(url_for('template_dashboard'))
-
-        try:
-            df = pd.read_excel(filepath)
-            dataset = create_dataset_with_records(
-                df,
-                name=f"Template Analysis {timestamp}",
-                description="Template-based automated analysis",
-                filename=file.filename,
-                file_path=filepath,
-                user_id=current_user.id,
-                is_template=True
-            )
-            db.session.commit()
-            flash_msg('template_uploaded', 'success')
-            return redirect(url_for('view_template_analysis', dataset_id=dataset.id))
-
-        except Exception:
-            db.session.rollback()
-            logger.exception("템플릿 업로드 실패: %s", filepath)
-            flash_msg('process_failed', 'danger')
-            remove_file(filepath)
-            return redirect(url_for('template_dashboard'))
-    else:
-        flash_msg('invalid_file_format', 'danger')
-        return redirect(url_for('template_dashboard'))
-
 # 템플릿 기반 자동 분석 뷰
 @app.route('/template/analysis/<int:dataset_id>')
 @login_required
 def view_template_analysis(dataset_id):
     dataset = Dataset.query.get_or_404(dataset_id)
 
-    denied = _deny_if_not_owner(dataset, 'template_dashboard')
+    denied = _deny_if_not_owner(dataset, 'template_analysis')
     if denied:
         return denied
 
@@ -961,6 +909,15 @@ def view_template_analysis(dataset_id):
                          insights=insights,
                          data=df.head(100).to_dict('records'),
                          columns=df.columns.tolist())
+
+DETECTED_TYPE_LABELS = {
+    'crop': '곡물 생산량 분석',
+    'marketing': '마케팅 캠페인 분석',
+    'customer': '고객 분석',
+    'sales': '판매 데이터 분석',
+    'generic': '템플릿 분석',
+}
+
 
 def _detect_template_type(df):
     cols = set(df.columns)
@@ -1938,8 +1895,12 @@ TEMPLATES = {
 @app.route('/template_analysis')
 @login_required
 def template_analysis():
-    """템플릿 분석 페이지"""
-    return render_template('template_analysis.html')
+    """템플릿 분석 페이지 (업로드 + 업로드 이력)"""
+    datasets = Dataset.query.filter_by(
+        user_id=current_user.id,
+        is_template=True
+    ).order_by(Dataset.uploaded_at.desc()).all()
+    return render_template('template_analysis.html', datasets=datasets)
 
 
 @app.route('/download_template/<template_name>')
@@ -1970,82 +1931,82 @@ def download_template(template_name):
 
 
 @app.route('/template_analyze', methods=['POST'])
+@app.route('/template/upload', methods=['POST'], endpoint='upload_template')
 @login_required
 def template_analyze():
-    """템플릿 파일 업로드 및 분석"""
+    """템플릿 파일 업로드 및 분석 (CSV/Excel, 유형 미선택 시 자동 감지)"""
+    file_path = None
     try:
-        # 파일 확인
         if 'file' not in request.files:
-            flash('파일이 없습니다.' if session.get('language') == 'ko' else 'No file uploaded.', 'danger')
+            flash_msg('no_file_selected', 'danger')
             return redirect(url_for('template_analysis'))
-        
+
         file = request.files['file']
-        template_type = request.form.get('template_type')
-        
+        template_type = (request.form.get('template_type') or '').strip()
+
         if not file.filename:
-            flash('파일이 선택되지 않았습니다.' if session.get('language') == 'ko' else 'No file selected.', 'danger')
+            flash_msg('no_file_selected', 'danger')
             return redirect(url_for('template_analysis'))
-        
-        if not template_type or template_type not in TEMPLATES:
+
+        if template_type and template_type not in TEMPLATES:
             flash('템플릿 유형을 선택하세요.' if session.get('language') == 'ko' else 'Select template type.', 'danger')
             return redirect(url_for('template_analysis'))
-        
-        # 파일 확장자 확인
-        if not file.filename.endswith('.csv'):
-            flash('CSV 파일만 업로드 가능합니다.' if session.get('language') == 'ko' else 'Only CSV files allowed.', 'danger')
+
+        if not allowed_file(file.filename):
+            flash_msg('invalid_file_format', 'danger')
             return redirect(url_for('template_analysis'))
-        
+
         try:
-            file_path, _ = save_upload(file, 'template', template_type)
+            file_path, _ = save_upload(file, current_user.id, 'template', template_type)
         except OSError:
             logger.exception("템플릿 파일 저장 실패: %s", file.filename)
             flash_msg('save_failed', 'danger')
             return redirect(url_for('template_analysis'))
 
-        unique_filename = os.path.basename(file_path)
+        df = read_dataframe(file_path)
 
-        print(f"✅ 템플릿 파일 저장: {file_path}")
-        
-        # 데이터 읽기
-        df = pd.read_csv(file_path)
-        
-        print(f"✅ 데이터 로드: {df.shape}")
-        print(f"컬럼: {df.columns.tolist()}")
-        
-        auto_analysis = request.form.get('auto_analysis') == 'true'
-        save_dataset  = request.form.get('save_dataset') == 'true'
+        # 옵션을 아예 보내지 않은 폼(간단 업로드)은 저장 + 자동 분석으로 처리
+        if {'analysis_options', 'auto_analysis', 'save_dataset'} & set(request.form):
+            auto_analysis = request.form.get('auto_analysis') == 'true'
+            save_dataset = request.form.get('save_dataset') == 'true'
+        else:
+            auto_analysis = save_dataset = True
 
         # 자동 분석이면 무조건 DB 저장 (분석 페이지에 dataset_id 필요)
         if auto_analysis or save_dataset:
-            template_info = TEMPLATES[template_type]
-            dataset_name = f"{template_info['name_ko']} - {datetime.now().strftime('%Y-%m-%d')}"
+            if template_type:
+                label = TEMPLATES[template_type]['name_ko']
+            else:
+                label = DETECTED_TYPE_LABELS.get(_detect_template_type(df), '템플릿 분석')
+            dataset_name = f"{label} - {datetime.now().strftime('%Y-%m-%d')}"
 
             dataset = create_dataset_with_records(
                 df,
                 name=dataset_name,
-                description=f"Template: {template_type}",
-                filename=unique_filename,
+                description=f"Template: {template_type or 'auto'}",
+                filename=os.path.basename(file_path),
                 file_path=file_path,
                 user_id=current_user.id,
                 sanitize=True,
                 is_template=True
             )
             db.session.commit()
-            print(f"✅ 데이터셋 저장: {dataset.id} ({len(df)}행)")
 
-        if auto_analysis:
-            return redirect(url_for('view_template_analysis', dataset_id=dataset.id))
+            if auto_analysis:
+                return redirect(url_for('view_template_analysis', dataset_id=dataset.id))
         else:
-            flash('파일이 성공적으로 업로드되었습니다.' if session.get('language') == 'ko' else 'File uploaded successfully.', 'success')
-            return redirect(url_for('template_analysis'))
-    
+            remove_file(file_path)
+
+        flash_msg('template_uploaded', 'success')
+        return redirect(url_for('template_analysis'))
+
     except HTTPException:
         raise
     except Exception:
         db.session.rollback()
         logger.exception("템플릿 분석 오류: template_type=%s", request.form.get('template_type'))
-
-        flash('오류가 발생했습니다.' if session.get('language') == 'ko' else 'An error occurred.', 'danger')
+        remove_file(file_path)
+        flash_msg('process_failed', 'danger')
         return redirect(url_for('template_analysis'))
 
 ANALYTICS_TABS = ('timeseries', 'outlier', 'correlation', 'rfm', 'pareto', 'cohort', 'abtest')
