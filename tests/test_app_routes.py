@@ -581,7 +581,15 @@ def test_analytics_guide_covers_every_tab(client, user, db_session):
 
         assert response.status_code == 200
         guide = app_module.ANALYTICS_TAB_GUIDE[tab]
-        assert guide['ko'][1] in response.get_data(as_text=True)
+        body = response.get_data(as_text=True)
+        assert guide['ko'][1] in body
+        assert guide['ko'][4] in body
+
+
+def test_analytics_guide_examples_are_bilingual():
+    for tab, guide in app_module.ANALYTICS_TAB_GUIDE.items():
+        assert guide['ko'][4].startswith('예)'), tab
+        assert guide['en'][4].startswith('Example'), tab
 
 
 def test_analytics_report_includes_tab_guide(client, user, db_session):

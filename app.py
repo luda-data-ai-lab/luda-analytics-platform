@@ -2245,20 +2245,24 @@ def _abtest_insights(result, value_col):
     return lines
 
 
-# 탭별 안내: (제목, 무엇을 보는 분석인지, 필요한 컬럼, 해석 방법, 매뉴얼 앵커)
+# 탭별 안내: (제목, 무엇을 보는 분석인지, 필요한 컬럼, 해석 방법, 예시, 매뉴얼 앵커)
 ANALYTICS_TAB_GUIDE = {
     'timeseries': {
         'ko': ('시계열 분석',
                '기간별 합계·평균 추이와 이동평균, 전기 대비(MoM·YoY) 증감, 단순 추세 예측을 봅니다.',
                '날짜 컬럼 1개 + 숫자 값 컬럼 1개',
                '이동평균선은 단기 변동을 걷어낸 흐름입니다. 예측값은 과거 추세의 선형 연장이므로 '
-               '이벤트·계절성이 큰 데이터에서는 참고치로만 쓰세요.'),
+               '이벤트·계절성이 큰 데이터에서는 참고치로만 쓰세요.',
+               '예) 매출 데이터에서 날짜=Date, 값=Revenue, 주기=월, 집계=합계 → 월별 매출 추세와 '
+               'MoM 증감률. MoM 이 +12% 면 전월 대비 12% 증가를 뜻합니다.'),
         'en': ('Time series',
                'Totals or averages per period with a moving average, period-over-period change '
                '(MoM/YoY) and a simple trend projection.',
                'One date column + one numeric value column',
                'The moving average strips short-term noise. The projection is a linear extension of '
-               'past trend, so treat it as a reference when events or seasonality dominate.'),
+               'past trend, so treat it as a reference when events or seasonality dominate.',
+               'Example: sales data with date=Date, value=Revenue, monthly sum → a monthly revenue '
+               'trend with MoM change; a +12% bar means 12% above the previous month.'),
         'anchor': 'advanced',
     },
     'outlier': {
@@ -2266,13 +2270,17 @@ ANALYTICS_TAB_GUIDE = {
                'IQR 또는 Z-score 기준으로 정상 범위를 벗어난 행을 찾아 차트와 표에 표시합니다.',
                '숫자 값 컬럼 1개 (선택: 그룹 컬럼)',
                '임계값을 낮추면 더 많은 행이 이상치로 잡힙니다. 통계적 이상치는 오류일 수도, '
-               '실제 특이 거래일 수도 있으니 원본 행을 확인한 뒤 판단하세요.'),
+               '실제 특이 거래일 수도 있으니 원본 행을 확인한 뒤 판단하세요.',
+               '예) 값=Revenue, IQR 1.5, 그룹=Region → 비정상 거래 목록과 지역별 이상치 건수. '
+               '한 지역에 몰려 있으면 입력 오류인지 먼저 확인하세요.'),
         'en': ('Outlier detection',
                'Flags rows outside the normal range using IQR or Z-score and marks them on the '
                'chart and table.',
                'One numeric column (optional group column)',
                'Lowering the threshold flags more rows. A statistical outlier may be a data error '
-               'or a genuine exception — check the underlying rows before acting.'),
+               'or a genuine exception — check the underlying rows before acting.',
+               'Example: value=Revenue, IQR 1.5, group=Region → a list of abnormal deals plus outlier '
+               'counts per region; a spike in one region usually means an entry error.'),
         'anchor': 'advanced',
     },
     'correlation': {
@@ -2280,13 +2288,17 @@ ANALYTICS_TAB_GUIDE = {
                '숫자 컬럼 간 상관계수 행렬과, 선택한 목표 변수에 대한 변수별 기여도를 봅니다.',
                '숫자 컬럼 2개 이상 + 목표 컬럼 1개',
                '상관계수는 -1~1 이며 절대값이 클수록 함께 움직입니다. 상관·기여도는 인과관계를 '
-               '증명하지 않습니다 — 숨은 공통 원인이 있을 수 있습니다.'),
+               '증명하지 않습니다 — 숨은 공통 원인이 있을 수 있습니다.',
+               '예) 작물 데이터에서 타깃=Crop_Yield_kg → 강수량·비료량 중 어느 것이 수확량을 더 설명하는지 '
+               'β 로 비교합니다. β=0.45 는 1 표준편차 증가 시 타깃이 0.45 표준편차 증가한다는 뜻.'),
         'en': ('Correlation & drivers',
                'Correlation matrix across numeric columns plus per-variable contribution to a '
                'chosen target.',
                'Two or more numeric columns + one target column',
                'Coefficients run -1 to 1; larger absolute values move together more. Correlation '
-               'and contribution do not prove causation — a hidden common cause may exist.'),
+               'and contribution do not prove causation — a hidden common cause may exist.',
+               'Example: crop data with target=Crop_Yield_kg → compare rainfall vs. fertiliser by β. '
+               'β=0.45 means one standard deviation more moves the target by 0.45 standard deviations.'),
         'anchor': 'advanced',
     },
     'rfm': {
@@ -2295,13 +2307,17 @@ ANALYTICS_TAB_GUIDE = {
                '충성 우수 고객부터 휴면까지 세그먼트로 나눕니다.',
                '고객 식별 컬럼 + 날짜 컬럼 + 금액 컬럼',
                'R/F/M 점수는 업로드한 데이터 안에서의 상대 5분위이며 절대 기준이 아닙니다. '
-               '데이터가 바뀌면 같은 고객의 점수도 달라질 수 있습니다.'),
+               '데이터가 바뀌면 같은 고객의 점수도 달라질 수 있습니다.',
+               '예) 고객=Customer_ID, 날짜=주문일, 금액=결제금액 → R5·F5·M5 는 리텐션할 충성 고객, '
+               'R1·F4 처럼 예전엔 자주 샀지만 최근 뜸한 고객은 윈백 대상입니다.'),
         'en': ('RFM segments',
                'Scores each customer on recency, frequency and monetary value, then groups them '
                'from champions through hibernating.',
                'Customer column + date column + amount column',
                'R/F/M scores are relative quintiles within the uploaded data, not absolute '
-               'thresholds — the same customer can score differently on a different dataset.'),
+               'thresholds — the same customer can score differently on a different dataset.',
+               'Example: customer=Customer_ID, date=Order_Date, amount=Amount → R5/F5/M5 are champions '
+               'to retain, while R1/F4 (used to buy often, now quiet) are win-back targets.'),
         'anchor': 'segment',
     },
     'pareto': {
@@ -2309,13 +2325,17 @@ ANALYTICS_TAB_GUIDE = {
                '카테고리를 기여도 순으로 정렬해 누적 비중을 보고 A/B/C 등급으로 분류합니다.',
                '카테고리 컬럼 + 숫자 값 컬럼',
                '누적 80%까지는 A, 95%까지는 B, 그 이상은 C 입니다. A 등급은 소수지만 매출 대부분을 '
-               '차지하므로 재고·마케팅 우선순위 판단에 씁니다.'),
+               '차지하므로 재고·마케팅 우선순위 판단에 씁니다.',
+               '예) 분류=Product, 값=Revenue → 상품 3개가 A 등급으로 매출 80% 를 차지하면 재고·프로모션을 '
+               '그 3개에 먼저 배분합니다.'),
         'en': ('Pareto (ABC) analysis',
                'Sorts categories by contribution, shows the cumulative share and assigns A/B/C '
                'classes.',
                'Category column + numeric value column',
                'A covers up to ~80% cumulative share, B up to ~95%, C above that. A items are few '
-               'but carry most of the value — useful for stock and marketing priorities.'),
+               'but carry most of the value — useful for stock and marketing priorities.',
+               'Example: category=Product, value=Revenue — if three A-grade products make up 80% of '
+               'revenue, prioritise stock and promotion for those three.'),
         'anchor': 'segment',
     },
     'cohort': {
@@ -2323,13 +2343,17 @@ ANALYTICS_TAB_GUIDE = {
                '첫 거래 시점으로 고객을 묶어, 이후 기간마다 얼마나 다시 돌아오는지 비율로 봅니다.',
                '고객 식별 컬럼 + 날짜 컬럼',
                '한 행이 하나의 코호트이고 +1, +2 는 첫 거래 이후 경과 기간입니다. 아직 도래하지 '
-               '않은 기간은 0% 가 아니라 빈칸으로 표시됩니다.'),
+               '않은 기간은 0% 가 아니라 빈칸으로 표시됩니다.',
+               '예) 고객=Customer_ID, 날짜=주문일, 주기=월 → 1월 행의 +1 칸이 40%, +2 가 25% 라면 '
+               '첫 구매 직후 이탈이 커서 온보딩 개선이 필요하다는 신호입니다.'),
         'en': ('Cohort retention',
                'Groups customers by their first activity period and shows what share returns in '
                'each later period.',
                'Customer column + date column',
                'Each row is a cohort; +1, +2 are periods since first activity. Periods that have '
-               'not elapsed yet are left blank rather than shown as 0%.'),
+               'not elapsed yet are left blank rather than shown as 0%.',
+               'Example: customer=Customer_ID, date=Order_Date, monthly — a January row of 40% at +1 and '
+               '25% at +2 signals heavy early churn and weak onboarding.'),
         'anchor': 'segment',
     },
     'abtest': {
@@ -2338,13 +2362,17 @@ ANALYTICS_TAB_GUIDE = {
                '어려운지 검정합니다.',
                '그룹 컬럼(2개 그룹) + 숫자 값 컬럼',
                'p 값이 유의수준(0.05)보다 작으면 "유의함" 입니다. 유의성은 차이가 있다는 신호일 뿐 '
-               '원인을 증명하지 않으며, 표본이 적으면 결과가 불안정합니다.'),
+               '원인을 증명하지 않으며, 표본이 적으면 결과가 불안정합니다.',
+               '예) 그룹=Channel, 지표=Revenue → p=0.03 이고 신뢰구간이 0 을 포함하지 않으면 차이를 '
+               '우연으로 보기 어렵고, p=0.4 는 “차이 없음”이 아니라 “판단 불가”입니다.'),
         'en': ('A/B significance test',
                'Tests whether the gap between two groups — means (Welch t-test) or conversion '
                'rates (two-proportion z-test) — is unlikely to be chance.',
                'Group column (two groups) + numeric value column',
                'A p-value below the significance level (0.05) is reported as significant. '
-               'Significance signals a difference, not its cause, and small samples are unstable.'),
+               'Significance signals a difference, not its cause, and small samples are unstable.',
+               'Example: group=Channel, metric=Revenue — p=0.03 with an interval excluding 0 means the '
+               'gap is unlikely to be chance; p=0.4 means the data cannot tell, not “no difference”.'),
         'anchor': 'segment',
     },
 }
@@ -2356,12 +2384,13 @@ def _analytics_guide(tab):
     if not guide:
         return None
     language = 'ko' if session.get('language', 'ko') == 'ko' else 'en'
-    title, purpose, columns, reading = guide[language]
+    title, purpose, columns, reading, example = guide[language]
     return {
         'title': title,
         'purpose': purpose,
         'columns': columns,
         'reading': reading,
+        'example': example,
         'anchor': guide['anchor'],
     }
 
