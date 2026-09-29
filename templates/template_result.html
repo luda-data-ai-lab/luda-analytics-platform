@@ -31,6 +31,11 @@
                 <i class="bi bi-bar-chart"></i>
                 {% if current_language == 'ko' %}시각화{% else %}Visualize{% endif %}
             </a>
+            {% elif example_type %}
+            <a href="{{ url_for('example_advanced_analytics', template_type=example_type) }}" class="btn btn-primary">
+                <i class="bi bi-graph-up-arrow"></i>
+                {% if current_language == 'ko' %}예시 데이터로 고급 분석{% else %}Advanced Analysis with sample{% endif %}
+            </a>
             {% endif %}
             <a href="{{ url_for('template_analysis') }}" class="btn btn-outline-primary">
                 <i class="bi bi-arrow-left"></i>

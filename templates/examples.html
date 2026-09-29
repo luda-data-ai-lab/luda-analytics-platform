@@ -69,6 +69,10 @@
                             <i class="bi bi-eye"></i>
                             {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
                         </a>
+                        <a href="{{ url_for('example_advanced_analytics', template_type='crop_yield') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            {% if current_language == 'ko' %}고급 분석{% else %}Advanced Analysis{% endif %}
+                        </a>
                         <a href="{{ url_for('download_template', template_name='crop_yield') }}" class="btn btn-outline-success">
                             <i class="bi bi-download"></i>
                             {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
@@ -116,6 +120,10 @@
                         <a href="{{ url_for('example_view', template_type='sales_data') }}" class="btn btn-primary">
                             <i class="bi bi-eye"></i>
                             {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
+                        </a>
+                        <a href="{{ url_for('example_advanced_analytics', template_type='sales_data') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            {% if current_language == 'ko' %}고급 분석{% else %}Advanced Analysis{% endif %}
                         </a>
                         <a href="{{ url_for('download_template', template_name='sales_data') }}" class="btn btn-outline-success">
                             <i class="bi bi-download"></i>
@@ -165,6 +173,10 @@
                             <i class="bi bi-eye"></i>
                             {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
                         </a>
+                        <a href="{{ url_for('example_advanced_analytics', template_type='customer_data') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            {% if current_language == 'ko' %}고급 분석{% else %}Advanced Analysis{% endif %}
+                        </a>
                         <a href="{{ url_for('download_template', template_name='customer_data') }}" class="btn btn-outline-success">
                             <i class="bi bi-download"></i>
                             {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
@@ -213,6 +225,10 @@
                             <i class="bi bi-eye"></i>
                             {% if current_language == 'ko' %}예시 보기{% else %}View Example{% endif %}
                         </a>
+                        <a href="{{ url_for('example_advanced_analytics', template_type='marketing_campaign') }}" class="btn btn-outline-primary">
+                            <i class="bi bi-graph-up-arrow"></i>
+                            {% if current_language == 'ko' %}고급 분석{% else %}Advanced Analysis{% endif %}
+                        </a>
                         <a href="{{ url_for('download_template', template_name='marketing_campaign') }}" class="btn btn-outline-success">
                             <i class="bi bi-download"></i>
                             {% if current_language == 'ko' %}템플릿 다운로드{% else %}Download Template{% endif %}
@@ -234,10 +250,10 @@
                 <p class="mb-0">
                     {% if current_language == 'ko' %}
                         예시 화면은 샘플 데이터로 생성된 분석 결과입니다. 
-                        실제 데이터를 업로드하려면 <strong>"템플릿 분석 > 전문 분석"</strong> 메뉴를 이용하세요.
+                        실제 데이터를 업로드하려면 <strong>"템플릿 분석"</strong> 메뉴를 이용하세요.
                     {% else %}
                         Example screens show analysis results generated from sample data.
-                        To upload your own data, use <strong>"Template Analysis > Professional Analysis"</strong> menu.
+                        To upload your own data, use the <strong>"Template Analysis"</strong> menu.
                     {% endif %}
                 </p>
             </div>

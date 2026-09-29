@@ -386,7 +386,7 @@ def test_static_pages_require_login(client):
 def test_examples_and_template_pages_render(client, user):
     _login(client)
 
-    for path in ('/examples', '/template_analysis', '/ocr/scan', '/template'):
+    for path in ('/examples', '/template_analysis', '/ocr/scan'):
         assert client.get(path).status_code == 200
 
 
@@ -756,3 +756,32 @@ def test_template_result_links_to_advanced_analytics(client, user, db_session):
     response = client.get(f'/template/analysis/{dataset.id}')
 
     assert f'/analytics/{dataset.id}' in response.get_data(as_text=True)
+
+
+def test_example_page_links_to_example_advanced_analytics(client, user):
+    _login(client)
+
+    body = client.get('/example/sales_data').get_data(as_text=True)
+
+    assert '/example/sales_data/advanced' in body
+
+
+def test_example_advanced_analytics_creates_dataset_once(client, user, db_session):
+    _login(client)
+
+    first = client.get('/example/sales_data/advanced')
+    dataset = Dataset.query.filter_by(user_id=user.id).one()
+    assert first.headers['Location'].endswith(f'/analytics/{dataset.id}')
+
+    second = client.get('/example/sales_data/advanced')
+    assert second.headers['Location'].endswith(f'/analytics/{dataset.id}')
+    assert Dataset.query.filter_by(user_id=user.id).count() == 1
+
+
+def test_example_advanced_analytics_rejects_unknown_type(client, user, db_session):
+    _login(client)
+
+    response = client.get('/example/nope/advanced')
+
+    assert response.headers['Location'].endswith('/examples')
+    assert Dataset.query.count() == 0
