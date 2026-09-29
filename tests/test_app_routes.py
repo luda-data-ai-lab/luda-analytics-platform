@@ -584,12 +584,14 @@ def test_analytics_guide_covers_every_tab(client, user, db_session):
         body = response.get_data(as_text=True)
         assert guide['ko'][1] in body
         assert guide['ko'][4] in body
+        assert guide['ko'][5] in body
 
 
 def test_analytics_guide_examples_are_bilingual():
     for tab, guide in app_module.ANALYTICS_TAB_GUIDE.items():
         assert guide['ko'][4].startswith('예)'), tab
         assert guide['en'][4].startswith('Example'), tab
+        assert guide['ko'][5] and guide['en'][5].startswith('Used'), tab
 
 
 def test_analytics_report_includes_tab_guide(client, user, db_session):

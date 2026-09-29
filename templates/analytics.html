@@ -74,6 +74,11 @@
             <p class="small text-muted mb-1">
                 <strong>{{ '해석 방법' if ko else 'How to read it' }}:</strong> {{ guide.reading }}
             </p>
+            {% if guide.usecase %}
+            <p class="small text-muted mb-1">
+                <strong>{{ '실 사용 예 · 얻는 인사이트' if ko else 'Real-world use & insight' }}:</strong> {{ guide.usecase }}
+            </p>
+            {% endif %}
             {% if guide.example %}
             <p class="small text-muted mb-0">
                 <strong>{{ '예시' if ko else 'Example' }}:</strong> {{ guide.example }}
