@@ -4,6 +4,7 @@ import io
 import json
 import os
 
+import flask
 import pytest
 
 import app as app_module
@@ -59,14 +60,25 @@ def test_index_redirects_authenticated_user_to_dashboard(client, user):
 
 def test_register_creates_user(client, db_session):
     response = client.post('/register', data={
-        'email': 'new@example.com', 'password': 'pw', 'name': '신규', 'company': 'LUDA',
+        'email': 'new@example.com', 'password': 'password123', 'name': '신규',
+        'company': 'LUDA',
     })
 
     assert response.status_code == 302
     assert '/login' in response.headers['Location']
     created = User.query.filter_by(email='new@example.com').one()
-    assert created.check_password('pw')
+    assert created.check_password('password123')
     assert created.company == 'LUDA'
+
+
+def test_register_rejects_short_password(client, db_session):
+    response = client.post('/register', data={
+        'email': 'short@example.com', 'password': 'pw', 'name': '짧은비밀번호',
+    })
+
+    assert response.status_code == 302
+    assert '/register' in response.headers['Location']
+    assert User.query.filter_by(email='short@example.com').count() == 0
 
 
 def test_register_rejects_duplicate_email(client, user):
@@ -487,3 +499,136 @@ def test_advanced_analytics_requires_login(client, user, db_session):
 
     assert response.status_code == 302
     assert '/login' in response.headers['Location']
+
+
+def _segment_rows():
+    """고객 4명 × 월별 거래 (RFM/코호트/파레토/AB 탭 공용)."""
+    rows = []
+    for index, customer in enumerate(['C1', 'C2', 'C3', 'C4']):
+        for month in range(1, 4 + index):
+            rows.append({
+                'Customer': customer,
+                'Date': f'2024-{month:02d}-05',
+                'Revenue': 100 * (index + 1),
+                'Category': f'Cat{index % 2}',
+                'Variant': 'A' if index % 2 else 'B',
+            })
+    return rows
+
+
+def test_advanced_analytics_renders_rfm_and_pareto_tabs(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    rfm = client.get(f'/analytics/{dataset.id}'
+                     '?tab=rfm&customer_col=Customer&date_col=Date&value_col=Revenue')
+    pareto = client.get(f'/analytics/{dataset.id}'
+                        '?tab=pareto&category_col=Category&value_col=Revenue')
+
+    assert 'chart_rfm_segments' in rfm.get_data(as_text=True)
+    assert 'chart_pareto' in pareto.get_data(as_text=True)
+
+
+def test_advanced_analytics_renders_cohort_and_abtest_tabs(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    cohort = client.get(f'/analytics/{dataset.id}'
+                        '?tab=cohort&customer_col=Customer&date_col=Date&cohort_freq=M')
+    abtest = client.get(f'/analytics/{dataset.id}'
+                        '?tab=abtest&group_col=Variant&value_col=Revenue&metric=mean')
+
+    assert 'chart_cohort' in cohort.get_data(as_text=True)
+    assert 'chart_ab_test' in abtest.get_data(as_text=True)
+
+
+def test_advanced_analytics_clamps_cohort_periods(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}'
+                          '?tab=cohort&customer_col=Customer&date_col=Date'
+                          '&cohort_freq=BOGUS&periods=9999')
+
+    assert response.status_code == 200
+    assert 'chart_cohort' in response.get_data(as_text=True)
+
+
+def test_analytics_export_returns_excel_file(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}/export'
+                          '?tab=pareto&category_col=Category&value_col=Revenue')
+
+    assert response.status_code == 200
+    assert 'attachment' in response.headers['Content-Disposition']
+    assert response.headers['Content-Type'].startswith(
+        'application/vnd.openxmlformats-officedocument.spreadsheetml')
+    assert response.data[:2] == b'PK'
+
+
+def test_analytics_report_page_renders_charts(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}/report'
+                          '?tab=pareto&category_col=Category&value_col=Revenue')
+
+    body = response.get_data(as_text=True)
+    assert response.status_code == 200
+    assert 'chart_pareto' in body and 'window.print()' in body
+
+
+def test_analytics_export_and_report_deny_other_users(client, user, db_session):
+    other = User(email='export-other@example.com', name='타인')
+    other.set_password('password123')
+    db_session.session.add(other)
+    db_session.session.commit()
+    dataset = _make_dataset(db_session, other, rows=_segment_rows())
+    _login(client)
+
+    export = client.get(f'/analytics/{dataset.id}/export')
+    report = client.get(f'/analytics/{dataset.id}/report')
+
+    assert export.status_code == 302 and '/dashboard' in export.headers['Location']
+    assert report.status_code == 302 and '/dashboard' in report.headers['Location']
+
+
+def test_analytics_export_requires_login(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+
+    response = client.get(f'/analytics/{dataset.id}/export')
+
+    assert response.status_code == 302
+    assert '/login' in response.headers['Location']
+
+
+def test_analytics_export_redirects_when_no_result(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=[
+        {'Customer': 'C1', 'Date': '2024-01-01', 'Revenue': 10},
+        {'Customer': 'C1', 'Date': '2024-02-01', 'Revenue': 20},
+    ])
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}/export'
+                          '?tab=rfm&customer_col=Customer&date_col=Date&value_col=Revenue'
+                          '&dataset_id=999')
+
+    assert response.status_code == 302
+    assert f'/analytics/{dataset.id}?' in response.headers['Location']
+
+
+def test_stat_value_filter_formats_small_numbers_and_booleans():
+    with app_module.app.test_request_context('/'):
+        assert app_module.stat_value(4.5648935e-05) == '4.56e-05'
+        assert app_module.stat_value(0.1032996896559482) == '0.1033'
+        assert app_module.stat_value(1234.5) == '1,234.5'
+        assert app_module.stat_value(True) == 'Significant'
+        assert app_module.stat_value(False) == 'Not significant'
+        assert app_module.stat_value("Welch's t-test") == "Welch's t-test"
+
+    with app_module.app.test_request_context('/'):
+        flask.session['language'] = 'ko'
+        assert app_module.stat_value(True) == '유의함'
+        assert app_module.stat_value(False) == '유의하지 않음'

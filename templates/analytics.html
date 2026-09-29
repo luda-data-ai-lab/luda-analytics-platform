@@ -22,16 +22,28 @@
             </h2>
             <p class="text-muted mb-0">{{ dataset.name }}</p>
         </div>
-        <a href="{{ url_for('visualize', dataset_id=dataset.id) }}" class="btn btn-outline-secondary">
-            <i class="bi bi-bar-chart"></i> {{ '시각화' if ko else 'Visualize' }}
-        </a>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('analytics_report', dataset_id=dataset.id, **params) }}" class="btn btn-outline-primary" target="_blank">
+                <i class="bi bi-file-earmark-pdf"></i> {{ 'PDF 리포트' if ko else 'PDF report' }}
+            </a>
+            <a href="{{ url_for('export_analytics', dataset_id=dataset.id, **params) }}" class="btn btn-outline-success">
+                <i class="bi bi-file-earmark-excel"></i> {{ 'Excel 내보내기' if ko else 'Excel export' }}
+            </a>
+            <a href="{{ url_for('visualize', dataset_id=dataset.id) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-bar-chart"></i> {{ '시각화' if ko else 'Visualize' }}
+            </a>
+        </div>
     </div>
 
     <ul class="nav nav-tabs mb-4">
         {% for key, label_ko, label_en, icon in [
             ('timeseries', '시계열 분석', 'Time Series', 'bi-activity'),
             ('outlier', '이상치 탐지', 'Outliers', 'bi-exclamation-diamond'),
-            ('correlation', '상관 · 기여도', 'Correlation & Drivers', 'bi-diagram-3')] %}
+            ('correlation', '상관 · 기여도', 'Correlation & Drivers', 'bi-diagram-3'),
+            ('rfm', 'RFM 세그먼트', 'RFM Segments', 'bi-people'),
+            ('pareto', '파레토 (ABC)', 'Pareto (ABC)', 'bi-bar-chart-steps'),
+            ('cohort', '코호트 리텐션', 'Cohort Retention', 'bi-grid-3x3'),
+            ('abtest', 'A/B 검정', 'A/B Test', 'bi-clipboard-data')] %}
         <li class="nav-item">
             <a class="nav-link {% if params.tab == key %}active{% endif %}"
                href="{{ url_for('advanced_analytics', dataset_id=dataset.id, tab=key) }}">
@@ -118,13 +130,112 @@
                     </select>
                 </div>
 
-                {% else %}
+                {% elif params.tab == 'correlation' %}
                 <div class="col-md-5">
                     <label class="form-label fw-bold" for="target_col">{{ '기여도 분석 타깃' if ko else 'Driver analysis target' }}</label>
                     <select class="form-select" id="target_col" name="target_col">
                         {% for column in options.numeric %}
                         <option value="{{ column }}" {% if column == params.target_col %}selected{% endif %}>{{ column }}</option>
                         {% endfor %}
+                    </select>
+                </div>
+
+                {% elif params.tab == 'rfm' %}
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="customer_col">{{ '고객 식별 컬럼' if ko else 'Customer column' }}</label>
+                    <select class="form-select" id="customer_col" name="customer_col">
+                        {% for column in options.categorical or columns %}
+                        <option value="{{ column }}" {% if column == params.customer_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="date_col">{{ '거래일 컬럼' if ko else 'Date column' }}</label>
+                    <select class="form-select" id="date_col" name="date_col">
+                        {% for column in options.datetime or columns %}
+                        <option value="{{ column }}" {% if column == params.date_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="value_col">{{ '금액 컬럼' if ko else 'Monetary column' }}</label>
+                    <select class="form-select" id="value_col" name="value_col">
+                        {% for column in options.numeric %}
+                        <option value="{{ column }}" {% if column == params.value_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% elif params.tab == 'pareto' %}
+                <div class="col-md-5">
+                    <label class="form-label fw-bold" for="category_col">{{ '분류 컬럼' if ko else 'Category column' }}</label>
+                    <select class="form-select" id="category_col" name="category_col">
+                        {% for column in options.categorical or columns %}
+                        <option value="{{ column }}" {% if column == params.category_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label fw-bold" for="value_col">{{ '기여도 기준 값' if ko else 'Value column' }}</label>
+                    <select class="form-select" id="value_col" name="value_col">
+                        {% for column in options.numeric %}
+                        <option value="{{ column }}" {% if column == params.value_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                {% elif params.tab == 'cohort' %}
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="customer_col">{{ '고객 식별 컬럼' if ko else 'Customer column' }}</label>
+                    <select class="form-select" id="customer_col" name="customer_col">
+                        {% for column in options.categorical or columns %}
+                        <option value="{{ column }}" {% if column == params.customer_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="date_col">{{ '활동일 컬럼' if ko else 'Activity date column' }}</label>
+                    <select class="form-select" id="date_col" name="date_col">
+                        {% for column in options.datetime or columns %}
+                        <option value="{{ column }}" {% if column == params.date_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold" for="cohort_freq">{{ '코호트 주기' if ko else 'Cohort period' }}</label>
+                    <select class="form-select" id="cohort_freq" name="cohort_freq">
+                        {% for key, label_ko, label_en in [('W','주','Weekly'),('M','월','Monthly'),('Q','분기','Quarterly'),('Y','년','Yearly')] %}
+                        <option value="{{ key }}" {% if key == params.cohort_freq %}selected{% endif %}>{{ label_ko if ko else label_en }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label fw-bold" for="periods">{{ '추적 기간 수' if ko else 'Periods' }}</label>
+                    <input class="form-control" id="periods" name="periods" type="number" min="3" max="24" value="{{ params.periods }}">
+                </div>
+
+                {% elif params.tab == 'abtest' %}
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="group_col">{{ '그룹 컬럼 (A/B)' if ko else 'Group column (A/B)' }}</label>
+                    <select class="form-select" id="group_col" name="group_col">
+                        {% for column in options.categorical or columns %}
+                        <option value="{{ column }}" {% if column == params.group_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label fw-bold" for="value_col">{{ '비교할 지표 컬럼' if ko else 'Metric column' }}</label>
+                    <select class="form-select" id="value_col" name="value_col">
+                        {% for column in options.numeric %}
+                        <option value="{{ column }}" {% if column == params.value_col %}selected{% endif %}>{{ column }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label fw-bold" for="metric">{{ '검정 방식' if ko else 'Test type' }}</label>
+                    <select class="form-select" id="metric" name="metric">
+                        <option value="mean" {% if params.metric == 'mean' %}selected{% endif %}>{{ '평균 차이 (Welch t-test)' if ko else 'Mean difference (Welch t-test)' }}</option>
+                        <option value="conversion" {% if params.metric == 'conversion' %}selected{% endif %}>{{ '전환율 (비율 z-test)' if ko else 'Conversion rate (proportion z-test)' }}</option>
                     </select>
                 </div>
                 {% endif %}
@@ -162,7 +273,7 @@
                 <div class="card-body py-3">
                     <div class="text-muted small text-uppercase">{{ key.replace('_', ' ') }}</div>
                     <div class="fs-5 fw-bold">
-                        {% if value is number %}{{ "{:,.2f}".format(value).rstrip('0').rstrip('.') }}{% else %}{{ value }}{% endif %}
+                        {{ value | stat_value }}
                     </div>
                 </div>
             </div>
@@ -186,6 +297,10 @@
             <h6 class="mb-0"><i class="bi bi-table"></i>
                 {% if name == 'outlier' %}{{ '이상치 상위 행' if ko else 'Top outlier rows' }}
                 {% elif name == 'correlation' %}{{ '상관계수 상위 조합' if ko else 'Strongest correlations' }}
+                {% elif name == 'rfm' %}{{ '금액 상위 고객 RFM' if ko else 'Top customers by monetary value' }}
+                {% elif name == 'pareto' %}{{ '분류별 누적 기여도 · ABC' if ko else 'Cumulative contribution & ABC class' }}
+                {% elif name == 'cohort' %}{{ '코호트별 리텐션 (%)' if ko else 'Retention by cohort (%)' }}
+                {% elif name == 'abtest' %}{{ '그룹별 지표' if ko else 'Group metrics' }}
                 {% else %}{{ '기간별 지표' if ko else 'Period metrics' }}{% endif %}
             </h6>
         </div>

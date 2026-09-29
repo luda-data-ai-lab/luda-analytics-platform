@@ -1,7 +1,10 @@
 import re
 from urllib.parse import urljoin, urlparse
 
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_from_directory, session
+from flask import (
+    Flask, render_template, request, redirect, url_for, flash, jsonify, send_file,
+    send_from_directory, session
+)
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf.csrf import CSRFProtect
 from markupsafe import Markup, escape
@@ -9,6 +12,7 @@ from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from sqlalchemy.exc import SQLAlchemyError
 from config import Config
+import io
 import logging
 import pandas as pd
 import json
@@ -20,6 +24,9 @@ from models import db, User, Dataset, DataRecord, DataView, OCRSession
 from src.advanced_analytics import (
     AGG_FUNCS, FREQ_RULES, categorical_columns, contribution_analysis, correlation_analysis,
     datetime_columns, numeric_columns, outlier_analysis, timeseries_analysis
+)
+from src.segment_analytics import (
+    AB_METRICS, ab_test_analysis, cohort_analysis, pareto_analysis, rfm_analysis
 )
 from src.analysis_utils import (
     add_ratio_column, correlation, gain_pct, group_agg, ratio_pct, top_share
@@ -71,6 +78,21 @@ def insight_html(value):
     for tag in _ALLOWED_INSIGHT_TAGS:
         safe = safe.replace(f'&lt;{tag}&gt;', f'<{tag}>').replace(f'&lt;/{tag}&gt;', f'</{tag}>')
     return Markup(safe)
+
+
+@app.template_filter('stat_value')
+def stat_value(value):
+    """지표 카드 표시용 서식 (아주 작은 값은 반올림으로 0 이 되지 않게 지수 표기)"""
+    if isinstance(value, bool):
+        return (get_message('유의함', 'Significant') if value
+                else get_message('유의하지 않음', 'Not significant'))
+    if isinstance(value, (int, float)):
+        if value != 0 and abs(value) < 0.01:
+            return f'{value:.2e}'
+        if abs(value) < 1:
+            return f'{value:.4f}'.rstrip('0').rstrip('.')
+        return f'{value:,.2f}'.rstrip('0').rstrip('.')
+    return value
 
 
 def is_safe_redirect_url(target):
@@ -1923,7 +1945,17 @@ def template_analyze():
         flash('오류가 발생했습니다.' if session.get('language') == 'ko' else 'An error occurred.', 'danger')
         return redirect(url_for('template_analysis'))
 
-ANALYTICS_TABS = ('timeseries', 'outlier', 'correlation')
+ANALYTICS_TABS = ('timeseries', 'outlier', 'correlation', 'rfm', 'pareto', 'cohort', 'abtest')
+# 세그먼트 분석은 주기 선택 폭이 좁다 (일/주 코호트는 표가 과도하게 커짐)
+COHORT_FREQS = ('W', 'M', 'Q', 'Y')
+RFM_SEGMENT_LABELS = {
+    'champions': ('충성 우수 고객', 'Champions'),
+    'loyal': ('단골 고객', 'Loyal'),
+    'potential': ('신규·성장 가능', 'Potential'),
+    'at_risk': ('이탈 위험', 'At risk'),
+    'hibernating': ('휴면', 'Hibernating'),
+    'others': ('기타', 'Others'),
+}
 
 
 def _int_arg(name, default, minimum, maximum):
@@ -2039,10 +2071,272 @@ def _contribution_insights(result):
     return lines
 
 
+def _segment_label(key):
+    labels = RFM_SEGMENT_LABELS.get(key, (key, key))
+    return get_message(labels[0], labels[1])
+
+
+def _rfm_insights(result, value_col):
+    stats = result['stats']
+    segments = result['segments']
+    top = stats['top_segment']
+    lines = [get_message(
+        f'고객 {stats["customers"]}명을 RFM 점수로 분류했습니다 (기준일 {stats["reference_date"]}).',
+        f'Scored {stats["customers"]} customers with RFM (reference date {stats["reference_date"]}).'
+    ), get_message(
+        f'가장 큰 세그먼트는 <strong>{_segment_label(top)}</strong>({segments[top]}명)입니다.',
+        f'The largest segment is <strong>{_segment_label(top)}</strong> ({segments[top]} customers).'
+    ), get_message(
+        f'평균 최근성 {stats["avg_recency"]:.0f}일, 평균 거래 {stats["avg_frequency"]:.1f}회, '
+        f'평균 {value_col} {stats["avg_monetary"]:,.0f}.',
+        f'Average recency {stats["avg_recency"]:.0f} days, {stats["avg_frequency"]:.1f} transactions, '
+        f'{value_col} {stats["avg_monetary"]:,.0f}.'
+    )]
+    if segments.get('at_risk'):
+        lines.append(get_message(
+            f'<strong>이탈 위험</strong> 세그먼트 {segments["at_risk"]}명은 재구매 유도 대상입니다.',
+            f'<strong>At risk</strong> segment has {segments["at_risk"]} customers to win back.'
+        ))
+    return lines
+
+
+def _pareto_insights(result, category_col, value_col):
+    stats = result['stats']
+    return [get_message(
+        f'{category_col} {stats["categories"]}개 중 상위 20%가 {value_col}의 '
+        f'<strong>{stats["top20_pct"]:.1f}%</strong>를 차지합니다.',
+        f'The top 20% of {stats["categories"]} {category_col} values account for '
+        f'<strong>{stats["top20_pct"]:.1f}%</strong> of {value_col}.'
+    ), get_message(
+        f'최대 기여 항목은 <strong>{stats["top_category"]}</strong>'
+        f'({stats["top_category_pct"]:.1f}%)입니다.',
+        f'The biggest contributor is <strong>{stats["top_category"]}</strong> '
+        f'({stats["top_category_pct"]:.1f}%).'
+    ), get_message(
+        f'ABC 등급: A {stats["a_count"]}개(누적 80% 이내), B {stats["b_count"]}개(95% 이내), '
+        f'C {stats["c_count"]}개.',
+        f'ABC classes: A {stats["a_count"]} (within 80% of value), B {stats["b_count"]} (within 95%), '
+        f'C {stats["c_count"]}.'
+    )]
+
+
+def _cohort_insights(result):
+    stats = result['stats']
+    lines = [get_message(
+        f'고객 {stats["customers"]}명을 첫 거래 시점 기준 {stats["cohorts"]}개 코호트로 나눴습니다.',
+        f'Split {stats["customers"]} customers into {stats["cohorts"]} cohorts by first activity.'
+    )]
+    if stats['avg_repeat_pct'] is not None:
+        lines.append(get_message(
+            f'다음 기간 재방문율 평균은 <strong>{stats["avg_repeat_pct"]:.1f}%</strong>입니다.',
+            f'Average next-period retention is <strong>{stats["avg_repeat_pct"]:.1f}%</strong>.'
+        ))
+        lines.append(get_message(
+            f'가장 좋은 코호트는 <strong>{stats["best_cohort"]}</strong>'
+            f'({stats["best_cohort_pct"]:.1f}%)입니다.',
+            f'The best cohort is <strong>{stats["best_cohort"]}</strong> '
+            f'({stats["best_cohort_pct"]:.1f}%).'
+        ))
+    return lines
+
+
+def _format_p_value(value):
+    """p-value 를 반올림으로 0 이 되지 않게 표기한다."""
+    if value < 0.0001:
+        return f'{value:.2e}'
+    return f'{value:.4f}'
+
+
+def _abtest_insights(result, value_col):
+    first, second = result['groups']
+    value_a, value_b = result['values']
+    metric_label = (get_message('전환율', 'conversion rate') if result['metric'] == 'conversion'
+                    else get_message(f'평균 {value_col}', f'mean {value_col}'))
+    lines = [get_message(
+        f'{first} {value_a:,.3f} vs {second} {value_b:,.3f} ({metric_label}, '
+        f'표본 {result["sizes"][0]}/{result["sizes"][1]}건)',
+        f'{first} {value_a:,.3f} vs {second} {value_b:,.3f} ({metric_label}, '
+        f'n = {result["sizes"][0]}/{result["sizes"][1]})'
+    )]
+    if result['lift_pct'] is not None:
+        lines.append(get_message(
+            f'차이는 {result["difference"]:+,.3f} (<strong>{result["lift_pct"]:+.1f}%</strong>)입니다.',
+            f'The difference is {result["difference"]:+,.3f} '
+            f'(<strong>{result["lift_pct"]:+.1f}%</strong>).'
+        ))
+    verdict = (get_message('통계적으로 유의합니다', 'statistically significant')
+               if result['significant']
+               else get_message('통계적으로 유의하지 않습니다', 'not statistically significant'))
+    lines.append(get_message(
+        f'{result["test"]} 결과 p = <strong>{_format_p_value(result["p_value"])}</strong> → '
+        f'유의수준 {result["alpha"]:.2f}에서 {verdict}.',
+        f'{result["test"]}: p = <strong>{_format_p_value(result["p_value"])}</strong> → {verdict} '
+        f'at α = {result["alpha"]:.2f}.'
+    ))
+    low, high = result['confidence_interval']
+    lines.append(get_message(
+        f'차이의 95% 신뢰구간은 {low:,.3f} ~ {high:,.3f} 입니다.',
+        f'The 95% confidence interval for the difference is {low:,.3f} to {high:,.3f}.'
+    ))
+    return lines
+
+
+def _analytics_options(df):
+    return {
+        'numeric': numeric_columns(df),
+        'datetime': datetime_columns(df),
+        'categorical': categorical_columns(df),
+        'freqs': list(FREQ_RULES),
+        'cohort_freqs': list(COHORT_FREQS),
+        'aggs': list(AGG_FUNCS),
+        'metrics': list(AB_METRICS),
+    }
+
+
+def _analytics_params(columns, options):
+    """쿼리 파라미터를 검증된 분석 설정으로 변환한다 (컬럼은 화이트리스트)."""
+    tab = request.args.get('tab', 'timeseries')
+    if tab not in ANALYTICS_TABS:
+        tab = 'timeseries'
+
+    first_numeric = options['numeric'][0] if options['numeric'] else None
+    first_date = options['datetime'][0] if options['datetime'] else None
+    first_category = options['categorical'][0] if options['categorical'] else None
+    return {
+        'tab': tab,
+        'date_col': _column_arg('date_col', columns, first_date),
+        'value_col': _column_arg('value_col', columns, first_numeric),
+        'freq': request.args.get('freq') if request.args.get('freq') in FREQ_RULES else 'M',
+        'agg': request.args.get('agg') if request.args.get('agg') in AGG_FUNCS else 'sum',
+        'window': _int_arg('window', 3, 2, 24),
+        'horizon': _int_arg('horizon', 3, 0, 24),
+        'method': 'zscore' if request.args.get('method') == 'zscore' else 'iqr',
+        'threshold': _float_arg('threshold', 1.5, 0.5, 6.0),
+        'group_col': _column_arg('group_col', columns),
+        'target_col': _column_arg('target_col', columns, first_numeric),
+        'customer_col': _column_arg('customer_col', columns, first_category),
+        'category_col': _column_arg('category_col', columns, first_category),
+        'cohort_freq': (request.args.get('cohort_freq')
+                        if request.args.get('cohort_freq') in COHORT_FREQS else 'M'),
+        'periods': _int_arg('periods', 12, 3, 24),
+        'metric': 'conversion' if request.args.get('metric') == 'conversion' else 'mean',
+    }
+
+
+def _run_analytics(df, columns, params):
+    """선택한 탭의 분석을 실행해 차트/인사이트/표/지표를 돌려준다."""
+    tab = params['tab']
+    charts, insights, tables, stats = {}, [], {}, {}
+    if tab == 'timeseries' and params['date_col'] and params['value_col']:
+        result = timeseries_analysis(
+            df, params['date_col'], params['value_col'],
+            freq=params['freq'], agg=params['agg'],
+            window=params['window'], horizon=params['horizon']
+        )
+        if result:
+            charts = _figures_json(result['figures'])
+            stats = result['stats']
+            insights = _timeseries_insights(result, params['value_col'])
+            table = result['table'].tail(24).round(2)
+            tables['timeseries'] = {
+                'columns': ['period', 'value', 'moving_avg', 'change_pct', 'yoy_pct'],
+                'rows': _table_rows(
+                    table,
+                    lambda index: {'period': index.strftime('%Y-%m-%d')}
+                ),
+            }
+
+    elif tab == 'outlier' and params['value_col']:
+        result = outlier_analysis(
+            df, params['value_col'], method=params['method'],
+            threshold=params['threshold'], group_col=params['group_col']
+        )
+        if result:
+            charts = _figures_json(result['figures'])
+            stats = {key: result[key] for key in ('count', 'total', 'pct')}
+            insights = _outlier_insights(result, params['value_col'])
+            tables['outlier'] = {
+                'columns': columns,
+                'rows': _table_rows(result['rows'][columns].round(2)),
+            }
+
+    elif tab == 'correlation':
+        result = correlation_analysis(df)
+        if result:
+            charts = _figures_json(result['figures'])
+            insights = _correlation_insights(result)
+            tables['correlation'] = {
+                'columns': ['x', 'y', 'r'],
+                'rows': [{'x': first, 'y': second, 'r': round(value, 3)}
+                         for first, second, value in result['pairs']],
+            }
+            stats = {'sample_size': result['sample_size']}
+        if params['target_col']:
+            contribution = contribution_analysis(df, params['target_col'])
+            if contribution:
+                charts.update(_figures_json(contribution['figures']))
+                insights += _contribution_insights(contribution)
+
+    elif tab == 'rfm' and params['customer_col'] and params['date_col'] and params['value_col']:
+        result = rfm_analysis(df, params['customer_col'], params['date_col'],
+                              params['value_col'])
+        if result:
+            charts = _figures_json(result['figures'])
+            stats = result['stats']
+            insights = _rfm_insights(result, params['value_col'])
+            table = result['table']
+            table['segment'] = [_segment_label(value) for value in table['segment']]
+            tables['rfm'] = {
+                'columns': ['customer', 'recency', 'frequency', 'monetary',
+                            'r_score', 'f_score', 'm_score', 'segment'],
+                'rows': _table_rows(table.round(2)),
+            }
+
+    elif tab == 'pareto' and params['category_col'] and params['value_col']:
+        result = pareto_analysis(df, params['category_col'], params['value_col'])
+        if result:
+            charts = _figures_json(result['figures'])
+            stats = result['stats']
+            insights = _pareto_insights(result, params['category_col'], params['value_col'])
+            tables['pareto'] = {
+                'columns': ['category', 'value', 'share_pct', 'cumulative_pct', 'abc'],
+                'rows': _table_rows(result['table'].round(2)),
+            }
+
+    elif tab == 'cohort' and params['customer_col'] and params['date_col']:
+        result = cohort_analysis(df, params['customer_col'], params['date_col'],
+                                 freq=params['cohort_freq'], max_periods=params['periods'])
+        if result:
+            charts = _figures_json(result['figures'])
+            stats = result['stats']
+            insights = _cohort_insights(result)
+            tables['cohort'] = {
+                'columns': result['table'].columns.tolist(),
+                'rows': _table_rows(result['table']),
+            }
+
+    elif tab == 'abtest' and params['group_col'] and params['value_col']:
+        result = ab_test_analysis(df, params['group_col'], params['value_col'],
+                                  metric=params['metric'])
+        if result:
+            charts = _figures_json(result['figures'])
+            stats = {key: result[key] for key in
+                     ('test', 'p_value', 'difference', 'lift_pct', 'significant')}
+            stats['sample_sizes'] = ' / '.join(str(size) for size in result['sizes'])
+            insights = _abtest_insights(result, params['value_col'])
+            tables['abtest'] = {
+                'columns': ['group', 'size', 'value'],
+                'rows': [{'group': group, 'size': size, 'value': round(value, 4)}
+                         for group, size, value
+                         in zip(result['groups'], result['sizes'], result['values'])],
+            }
+    return charts, insights, tables, stats
+
+
 @app.route('/analytics/<int:dataset_id>')
 @login_required
 def advanced_analytics(dataset_id):
-    """고급 분석 (시계열 / 이상치 / 상관·기여도)"""
+    """고급 분석 (시계열/이상치/상관·기여도/RFM/파레토/코호트/A·B 검정)"""
     dataset = Dataset.query.get_or_404(dataset_id)
 
     denied = _deny_if_not_owner(dataset, 'dashboard')
@@ -2056,88 +2350,14 @@ def advanced_analytics(dataset_id):
         return redirect(url_for('view_dataset', dataset_id=dataset_id))
 
     columns = df.columns.tolist()
-    options = {
-        'numeric': numeric_columns(df),
-        'datetime': datetime_columns(df),
-        'categorical': categorical_columns(df),
-        'freqs': list(FREQ_RULES),
-        'aggs': list(AGG_FUNCS),
-    }
-
-    tab = request.args.get('tab', 'timeseries')
-    if tab not in ANALYTICS_TABS:
-        tab = 'timeseries'
-
-    params = {
-        'tab': tab,
-        'date_col': _column_arg('date_col', columns,
-                                options['datetime'][0] if options['datetime'] else None),
-        'value_col': _column_arg('value_col', columns,
-                                 options['numeric'][0] if options['numeric'] else None),
-        'freq': request.args.get('freq') if request.args.get('freq') in FREQ_RULES else 'M',
-        'agg': request.args.get('agg') if request.args.get('agg') in AGG_FUNCS else 'sum',
-        'window': _int_arg('window', 3, 2, 24),
-        'horizon': _int_arg('horizon', 3, 0, 24),
-        'method': 'zscore' if request.args.get('method') == 'zscore' else 'iqr',
-        'threshold': _float_arg('threshold', 1.5, 0.5, 6.0),
-        'group_col': _column_arg('group_col', columns),
-        'target_col': _column_arg('target_col', columns,
-                                  options['numeric'][0] if options['numeric'] else None),
-    }
+    options = _analytics_options(df)
+    params = _analytics_params(columns, options)
 
     charts, insights, tables, stats = {}, [], {}, {}
     try:
-        if tab == 'timeseries' and params['date_col'] and params['value_col']:
-            result = timeseries_analysis(
-                df, params['date_col'], params['value_col'],
-                freq=params['freq'], agg=params['agg'],
-                window=params['window'], horizon=params['horizon']
-            )
-            if result:
-                charts = _figures_json(result['figures'])
-                stats = result['stats']
-                insights = _timeseries_insights(result, params['value_col'])
-                table = result['table'].tail(24).round(2)
-                tables['timeseries'] = {
-                    'columns': ['period', 'value', 'moving_avg', 'change_pct', 'yoy_pct'],
-                    'rows': _table_rows(
-                        table,
-                        lambda index: {'period': index.strftime('%Y-%m-%d')}
-                    ),
-                }
-
-        elif tab == 'outlier' and params['value_col']:
-            result = outlier_analysis(
-                df, params['value_col'], method=params['method'],
-                threshold=params['threshold'], group_col=params['group_col']
-            )
-            if result:
-                charts = _figures_json(result['figures'])
-                stats = {key: result[key] for key in ('count', 'total', 'pct')}
-                insights = _outlier_insights(result, params['value_col'])
-                tables['outlier'] = {
-                    'columns': columns,
-                    'rows': _table_rows(result['rows'][columns].round(2)),
-                }
-
-        elif tab == 'correlation':
-            result = correlation_analysis(df)
-            if result:
-                charts = _figures_json(result['figures'])
-                insights = _correlation_insights(result)
-                tables['correlation'] = {
-                    'columns': ['x', 'y', 'r'],
-                    'rows': [{'x': first, 'y': second, 'r': round(value, 3)}
-                             for first, second, value in result['pairs']],
-                }
-                stats = {'sample_size': result['sample_size']}
-            if params['target_col']:
-                contribution = contribution_analysis(df, params['target_col'])
-                if contribution:
-                    charts.update(_figures_json(contribution['figures']))
-                    insights += _contribution_insights(contribution)
+        charts, insights, tables, stats = _run_analytics(df, columns, params)
     except Exception:
-        logger.exception("고급 분석 실패: dataset=%s tab=%s", dataset_id, tab)
+        logger.exception("고급 분석 실패: dataset=%s tab=%s", dataset_id, params['tab'])
         flash(get_message('분석을 완료하지 못했습니다. 선택한 컬럼을 확인해주세요.',
                           'Could not complete the analysis. Please check the selected columns.'), 'warning')
 
@@ -2148,6 +2368,97 @@ def advanced_analytics(dataset_id):
     return render_template('analytics.html', dataset=dataset, columns=columns,
                            options=options, params=params, charts=charts,
                            insights=insights, tables=tables, stats=stats)
+
+
+def _insight_text(lines):
+    """리포트용 — 인사이트 문구에서 서식 태그를 제거한다."""
+    return [re.sub(r'</?(strong|em|br)>', '', line) for line in lines]
+
+
+@app.route('/analytics/<int:dataset_id>/export')
+@login_required
+def export_analytics(dataset_id):
+    """현재 분석 탭의 지표·인사이트·표를 Excel 로 내린다."""
+    dataset = Dataset.query.get_or_404(dataset_id)
+
+    denied = _deny_if_not_owner(dataset, 'dashboard')
+    if denied:
+        return denied
+
+    fix_dataset_meta(dataset)
+    df = load_dataset_dataframe(dataset_id)
+    if df.empty:
+        flash_msg('no_data', 'warning')
+        return redirect(url_for('view_dataset', dataset_id=dataset_id))
+
+    columns = df.columns.tolist()
+    params = _analytics_params(columns, _analytics_options(df))
+    try:
+        _, insights, tables, stats = _run_analytics(df, columns, params)
+    except Exception:
+        logger.exception("분석 내보내기 실패: dataset=%s tab=%s", dataset_id, params['tab'])
+        flash(get_message('리포트를 만들지 못했습니다. 설정을 확인해주세요.',
+                          'Could not build the report. Please check the settings.'), 'warning')
+        return redirect(url_for('advanced_analytics', dataset_id=dataset_id, **params))
+
+    if not insights and not tables:
+        flash(get_message('내보낼 분석 결과가 없습니다.', 'There is no analysis result to export.'),
+              'info')
+        return redirect(url_for('advanced_analytics', dataset_id=dataset_id, **params))
+
+    stream = io.BytesIO()
+    with pd.ExcelWriter(stream, engine='openpyxl') as writer:
+        summary = [
+            ('dataset', dataset.name),
+            ('analysis', params['tab']),
+            ('generated_at', datetime.now().strftime('%Y-%m-%d %H:%M')),
+        ]
+        summary += [(key, value) for key, value in stats.items()]
+        summary += [(f'insight_{index + 1}', line)
+                    for index, line in enumerate(_insight_text(insights))]
+        pd.DataFrame(summary, columns=['item', 'value']).to_excel(
+            writer, sheet_name='summary', index=False)
+        for name, table in tables.items():
+            pd.DataFrame(table['rows'], columns=table['columns']).to_excel(
+                writer, sheet_name=name[:31], index=False)
+    stream.seek(0)
+
+    filename = f"analytics_{dataset_id}_{params['tab']}_{datetime.now():%Y%m%d}.xlsx"
+    return send_file(
+        stream, as_attachment=True, download_name=filename,
+        mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+
+
+@app.route('/analytics/<int:dataset_id>/report')
+@login_required
+def analytics_report(dataset_id):
+    """인쇄/PDF 저장용 리포트 화면 (차트 포함)."""
+    dataset = Dataset.query.get_or_404(dataset_id)
+
+    denied = _deny_if_not_owner(dataset, 'dashboard')
+    if denied:
+        return denied
+
+    fix_dataset_meta(dataset)
+    df = load_dataset_dataframe(dataset_id)
+    if df.empty:
+        flash_msg('no_data', 'warning')
+        return redirect(url_for('view_dataset', dataset_id=dataset_id))
+
+    columns = df.columns.tolist()
+    params = _analytics_params(columns, _analytics_options(df))
+    charts, insights, tables, stats = {}, [], {}, {}
+    try:
+        charts, insights, tables, stats = _run_analytics(df, columns, params)
+    except Exception:
+        logger.exception("리포트 생성 실패: dataset=%s tab=%s", dataset_id, params['tab'])
+        flash(get_message('리포트를 만들지 못했습니다. 설정을 확인해주세요.',
+                          'Could not build the report. Please check the settings.'), 'warning')
+
+    return render_template('analytics_report.html', dataset=dataset, params=params,
+                           charts=charts, insights=insights, tables=tables, stats=stats,
+                           generated_at=datetime.now().strftime('%Y-%m-%d %H:%M'))
 
 
 ####################

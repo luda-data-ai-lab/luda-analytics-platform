@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% set ko = current_language == 'ko' %}
+{% set tab_labels = {
+    'timeseries': ('시계열 분석', 'Time series analysis'),
+    'outlier': ('이상치 탐지', 'Outlier detection'),
+    'correlation': ('상관 · 기여도 분석', 'Correlation & driver analysis'),
+    'rfm': ('RFM 세그먼트 분석', 'RFM segmentation'),
+    'pareto': ('파레토 (ABC) 분석', 'Pareto (ABC) analysis'),
+    'cohort': ('코호트 리텐션 분석', 'Cohort retention analysis'),
+    'abtest': ('A/B 유의성 검정', 'A/B significance test')
+} %}
+{% set tab_label = tab_labels.get(params.tab, (params.tab, params.tab)) %}
+
+{% block title %}{{ '분석 리포트' if ko else 'Analysis report' }} - {{ dataset.name }}{% endblock %}
+
+{% block content %}
+<div class="container analytics-report my-4">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+        <div>
+            <h2 class="mb-1">{{ tab_label[0] if ko else tab_label[1] }}</h2>
+            <p class="text-muted mb-0">
+                {{ dataset.name }} · {{ generated_at }}
+            </p>
+        </div>
+        <div class="d-flex gap-2 d-print-none">
+            <button type="button" class="btn btn-primary" onclick="window.print()">
+                <i class="bi bi-printer"></i> {{ 'PDF로 저장 / 인쇄' if ko else 'Save as PDF / print' }}
+            </button>
+            <a href="{{ url_for('advanced_analytics', dataset_id=dataset.id, **params) }}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left"></i> {{ '분석 화면' if ko else 'Back to analysis' }}
+            </a>
+        </div>
+    </div>
+
+    {% if insights %}
+    <h5 class="mt-4">{{ '요약 인사이트' if ko else 'Summary insights' }}</h5>
+    <ul class="ps-3">
+        {% for line in insights %}
+        <li class="mb-1">{{ line | insight_html }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if stats %}
+    <h5 class="mt-4">{{ '주요 지표' if ko else 'Key metrics' }}</h5>
+    <table class="table table-sm w-auto">
+        <tbody>
+            {% for key, value in stats.items() %}
+            {% if value is not none %}
+            <tr>
+                <th class="text-muted text-uppercase small pe-4">{{ key.replace('_', ' ') }}</th>
+                <td>{{ value | stat_value }}</td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    {% for key, chart in charts.items() %}
+    <div id="chart_{{ key }}" class="analytics-chart mt-4"></div>
+    {% endfor %}
+
+    {% for name, table in tables.items() %}
+    <h5 class="mt-4">{{ '상세 데이터' if ko else 'Detail table' }} — {{ name }}</h5>
+    <div class="table-responsive">
+        <table class="table table-sm table-bordered">
+            <thead class="table-light">
+                <tr>{% for column in table.columns %}<th class="text-nowrap">{{ column }}</th>{% endfor %}</tr>
+            </thead>
+            <tbody>
+                {% for row in table.rows %}
+                <tr>{% for column in table.columns %}<td>{{ row.get(column) if row.get(column) is not none else '' }}</td>{% endfor %}</tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endfor %}
+
+    {% if not insights and not charts and not tables %}
+    <div class="alert alert-info">
+        {{ '리포트로 만들 분석 결과가 없습니다. 분석 화면에서 컬럼을 선택해주세요.'
+           if ko else 'No analysis result to report. Please choose columns on the analysis page.' }}
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.plot.ly/plotly-3.0.1.min.js"></script>
+<script>
+function renderChart(divId, chartData) {
+    try {
+        Plotly.newPlot(divId, chartData.data, chartData.layout, {responsive: true});
+    } catch (error) {
+        console.error('Chart render error:', divId, error);
+    }
+}
+{% for key, chart in charts.items() %}
+renderChart('chart_{{ key }}', {{ chart | safe }});
+{% endfor %}
+</script>
+{% endblock %}
