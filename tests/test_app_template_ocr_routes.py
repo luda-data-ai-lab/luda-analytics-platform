@@ -48,7 +48,7 @@ def test_download_sample_template_returns_xlsx(logged_in_client):
     assert response.data[:2] == b'PK'  # xlsx = zip 컨테이너
 
 
-def test_template_dashboard_lists_only_template_datasets(logged_in_client, user, db_session):
+def test_template_analysis_lists_only_template_datasets(logged_in_client, user, db_session):
     db_session.session.add_all([
         Dataset(name='템플릿 셋', filename='t.xlsx', file_path='/tmp/t.xlsx',
                 user_id=user.id, is_template=True, row_count=1, column_count=1),
@@ -57,10 +57,17 @@ def test_template_dashboard_lists_only_template_datasets(logged_in_client, user,
     ])
     db_session.session.commit()
 
-    body = logged_in_client.get('/template').get_data(as_text=True)
+    body = logged_in_client.get('/template_analysis').get_data(as_text=True)
 
     assert '템플릿 셋' in body
     assert '일반 셋' not in body
+
+
+def test_legacy_template_path_redirects_to_template_analysis(logged_in_client):
+    response = logged_in_client.get('/template')
+
+    assert response.status_code == 302
+    assert response.headers['Location'].endswith('/template_analysis')
 
 
 def test_upload_template_creates_template_dataset(logged_in_client, db_session):
@@ -213,13 +220,35 @@ def test_template_analyze_rejects_unknown_template_type(logged_in_client, db_ses
     assert Dataset.query.count() == 0
 
 
-def test_template_analyze_rejects_non_csv(logged_in_client, db_session):
+def test_template_analyze_rejects_unreadable_excel(logged_in_client, db_session):
     response = logged_in_client.post('/template_analyze', data={
         'file': (io.BytesIO(b'x'), 'sales.xlsx'), 'template_type': 'sales_data',
     }, content_type='multipart/form-data')
 
     assert '/template_analysis' in response.headers['Location']
     assert Dataset.query.count() == 0
+
+
+def test_template_analyze_accepts_excel(logged_in_client, db_session):
+    df = pd.DataFrame({'Date': ['2024-01-01'], 'Revenue': [100]})
+
+    response = logged_in_client.post('/template_analyze', data={
+        'file': (_excel_bytes(df), 'sales.xlsx'), 'template_type': 'sales_data',
+        'analysis_options': '1', 'auto_analysis': 'true',
+    }, content_type='multipart/form-data')
+
+    dataset = Dataset.query.one()
+    assert f'/template/analysis/{dataset.id}' in response.headers['Location']
+
+
+def test_template_analyze_detects_type_when_not_selected(logged_in_client, db_session):
+    response = logged_in_client.post('/template_analyze', data={
+        'file': (io.BytesIO(b'Date,Revenue\n2024-01-01,100\n'), 'sales.csv'),
+    }, content_type='multipart/form-data')
+
+    dataset = Dataset.query.one()
+    assert dataset.name.startswith('판매 데이터 분석')
+    assert f'/template/analysis/{dataset.id}' in response.headers['Location']
 
 
 def test_ocr_upload_stores_extracted_table(logged_in_client, db_session, monkeypatch):

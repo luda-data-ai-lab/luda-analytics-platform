@@ -33,8 +33,8 @@ luda-analytics-platform/
 │   ├── dashboard.html      # 데이터셋 목록 (회사별 탭)
 │   ├── upload.html         # 파일 업로드
 │   ├── visualize.html      # 차트 생성
-│   ├── template_dashboard.html  # 템플릿 분석 메인
-│   ├── template_analysis.html   # 자동 대시보드
+│   ├── template_analysis.html   # 템플릿 분석 메인(업로드 + 이력)
+│   ├── _template_history.html   # 템플릿 업로드 이력 부분 템플릿
 │   └── ocr_scan.html       # OCR 스캔
 ├── static/                 # CSS, 이미지 등 정적 파일
 ├── sql/                    # DB 스키마
