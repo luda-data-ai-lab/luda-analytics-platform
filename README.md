@@ -67,15 +67,25 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. DB 초기화
+### 3. 환경 변수 설정
 
 ```bash
-python init_db.py
-# 1번 선택 → DB 초기화
-# 2번 선택 → 샘플 사용자 생성
+cp .env.example .env
+python -c "import secrets; print(secrets.token_hex(32))"   # 생성된 값을 SECRET_KEY 에 붙여넣기
 ```
 
-### 4. 앱 실행
+루트의 `.env` 는 실행 시 자동으로 읽힙니다(python-dotenv). 이미 설정된 셸 환경변수가 `.env` 값보다 우선합니다.
+
+### 4. DB 스키마 생성
+
+```bash
+flask db upgrade        # migrations/ 기준으로 테이블 생성·갱신 (FLASK_APP=app.py)
+python init_db.py       # 2번: 샘플 사용자, 3번: 샘플 데이터 (개발용 시드)
+```
+
+이미 `init_db.py` 로 만들어둔 DB라면 한 번만 `flask db stamp head` 로 현재 리버전을 기록하세요. 이후 모델 변경은 `flask db migrate -m "..."` → `flask db upgrade` 로 반영합니다.
+
+### 5. 앱 실행
 
 ```bash
 python app.py
@@ -90,7 +100,7 @@ python app.py
 | `SECRET_KEY` | Flask 세션 암호화 키 | 랜덤 64자 문자열 |
 | `DATABASE_URL` | DB 접속 URL | `postgresql+psycopg2://user:pw@host/db` |
 
-`.env` 파일 예시:
+`.env` 파일 예시 (자동으로 로드됨, 추적 제외 대상):
 ```
 SECRET_KEY=your-strong-secret-key
 DATABASE_URL=postgresql+psycopg2://postgres:password@localhost/analytics_db
@@ -106,11 +116,11 @@ DATABASE_URL=postgresql+psycopg2://postgres:password@localhost/analytics_db
    ```sql
    CREATE DATABASE analytics_db;
    ```
-2. 스키마 적용:
+2. `.env` 에 `DATABASE_URL` 지정
+3. 스키마 적용:
    ```bash
-   psql -U postgres -d analytics_db -f sql/schema_postgresql.sql
+   flask db upgrade
    ```
-3. 환경변수 `DATABASE_URL` 설정
 
 ## 라이선스
 

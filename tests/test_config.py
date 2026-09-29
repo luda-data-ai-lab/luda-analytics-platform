@@ -25,8 +25,34 @@ def test_defaults_when_env_missing(monkeypatch):
     monkeypatch.delenv('DATABASE_URL', raising=False)
     cfg = _reload_config()
 
-    assert cfg.SECRET_KEY == 'dev-secret-key-change-in-production'
-    assert cfg.SQLALCHEMY_DATABASE_URI.startswith('postgresql+psycopg2://')
+    # 개발 환경 기본값: 하드코딩 키 대신 임의 키, SQLite 폴백
+    assert len(cfg.SECRET_KEY) >= 32
+    assert cfg.SECRET_KEY != _reload_config().SECRET_KEY
+    assert cfg.SQLALCHEMY_DATABASE_URI.startswith('sqlite:///')
+
+
+def test_production_requires_secret_key_and_database_url(monkeypatch):
+    monkeypatch.setenv('FLASK_ENV', 'production')
+    monkeypatch.delenv('SECRET_KEY', raising=False)
+    with pytest.raises(RuntimeError, match='SECRET_KEY'):
+        _reload_config()
+
+    monkeypatch.setenv('SECRET_KEY', 'from-env')
+    monkeypatch.delenv('DATABASE_URL', raising=False)
+    with pytest.raises(RuntimeError, match='DATABASE_URL'):
+        _reload_config()
+
+
+def test_dotenv_file_is_loaded_without_overriding_shell(monkeypatch, tmp_path):
+    env_file = tmp_path / '.env'
+    env_file.write_text('SECRET_KEY=from-dotenv\nDATABASE_URL=sqlite:///dotenv.db\n')
+    monkeypatch.delenv('SECRET_KEY', raising=False)
+    monkeypatch.setenv('DATABASE_URL', 'sqlite:///shell.db')
+
+    config.load_dotenv(str(env_file))
+
+    assert os.environ['SECRET_KEY'] == 'from-dotenv'
+    assert os.environ['DATABASE_URL'] == 'sqlite:///shell.db'
 
 
 def test_env_overrides(monkeypatch):

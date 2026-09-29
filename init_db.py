@@ -7,6 +7,7 @@ This script creates database tables and adds initial data.
 """
 
 from app import app, db
+from flask_migrate import stamp
 from models import User, Dataset, DataRecord, DataView
 from werkzeug.security import generate_password_hash
 import pandas as pd
@@ -23,7 +24,10 @@ def init_database():
         # 새 테이블 생성
         print("새 테이블 생성 중... / Creating new tables...")
         db.create_all()
-        
+
+        # 마이그레이션 이력을 최신 리버전으로 표시 (이후 flask db migrate 가 이 스키마를 기준으로 동작)
+        stamp()
+
         print("✅ 데이터베이스 테이블이 생성되었습니다!")
         print("✅ Database tables created successfully!")
         
@@ -33,6 +37,7 @@ def init_database():
         print("- datasets")
         print("- data_records")
         print("- data_views")
+        print("- ocr_sessions")
 
 def create_sample_user():
     """샘플 사용자 생성 (개발 환경 전용)"""

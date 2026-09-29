@@ -2,7 +2,12 @@ import os
 import secrets
 from datetime import timedelta
 
+from dotenv import load_dotenv
+
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+# 프로젝트 루트의 .env 를 환경변수로 읽어온다 (이미 설정된 셸 변수가 우선).
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 
 def _env_flag(name, default=False):
