@@ -6,6 +6,7 @@ from flask import (
     send_from_directory, session
 )
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
+from flask_migrate import Migrate
 from flask_wtf.csrf import CSRFProtect
 from markupsafe import Markup, escape
 from werkzeug.exceptions import HTTPException, RequestEntityTooLarge
@@ -89,6 +90,9 @@ def is_safe_redirect_url(target):
 
 # 데이터베이스 초기화
 db.init_app(app)
+
+# 스키마 마이그레이션 (flask db migrate / flask db upgrade)
+migrate = Migrate(app, db)
 
 # 로그인 매니저 설정
 login_manager = LoginManager()
