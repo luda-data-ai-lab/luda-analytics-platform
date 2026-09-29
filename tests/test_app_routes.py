@@ -60,14 +60,14 @@ def test_index_redirects_authenticated_user_to_dashboard(client, user):
 
 def test_register_creates_user(client, db_session):
     response = client.post('/register', data={
-        'email': 'new@example.com', 'password': 'password123', 'name': '신규',
-        'company': 'LUDA',
+        'email': 'new@example.com', 'password': 'Luda-analyze-7', 'name': '신규',
+        'password_confirm': 'Luda-analyze-7', 'company': 'LUDA',
     })
 
     assert response.status_code == 302
     assert '/login' in response.headers['Location']
     created = User.query.filter_by(email='new@example.com').one()
-    assert created.check_password('password123')
+    assert created.check_password('Luda-analyze-7')
     assert created.company == 'LUDA'
 
 

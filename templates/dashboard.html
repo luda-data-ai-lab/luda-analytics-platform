@@ -75,7 +75,7 @@
             </div>
 
             <!-- 내 데이터 / 회사 전체 탭 -->
-            {% if current_user.company %}
+            {% if company_scope %}
             <ul class="nav nav-tabs mb-4">
                 <li class="nav-item">
                     <a class="nav-link {% if view == 'my' %}active{% endif %}"

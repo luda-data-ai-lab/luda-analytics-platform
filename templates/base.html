@@ -102,6 +102,11 @@
                             {{ current_user.name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="{{ url_for('change_password') }}">
+                                <i class="bi bi-shield-lock"></i>
+                                {% if current_language == 'ko' %}비밀번호 변경{% else %}Change Password{% endif %}
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('logout') }}">
                                 <i class="bi bi-box-arrow-right"></i>
                                 {% if current_language == 'ko' %}로그아웃{% else %}Logout{% endif %}
