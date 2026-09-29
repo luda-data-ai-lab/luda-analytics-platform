@@ -143,8 +143,11 @@ sudo apt install -y python3 python3-pip python3-venv nginx certbot python3-certb
 
 ### 1-4. 앱 배포
 ```bash
+# OCR 기능(스캔 업로드)을 쓰려면 시스템 패키지가 먼저 필요
+sudo apt install -y tesseract-ocr tesseract-ocr-kor poppler-utils libgl1
+
 cd /home/ubuntu
-git clone https://github.com/luda-data-ai-lab/luda-analytics.git app
+git clone https://github.com/luda-data-ai-lab/luda-analytics-platform.git app
 cd app
 python3 -m venv venv
 source venv/bin/activate
@@ -152,13 +155,19 @@ pip install -r requirements.txt
 ```
 
 ### 1-5. 환경 변수 (.env)
+
+`.env` 는 앱이 자동으로 읽는다(`config.py` 의 `load_dotenv`). 셸/systemd 환경변수가 있으면 그 값이 우선한다.
+
 ```ini
 # /home/ubuntu/app/.env
-DATABASE_URL=postgresql://luda_user:YOUR_PASSWORD@DB_PRIVATE_IP:5432/luda_analytics
-SECRET_KEY=your-secret-key-here
+DATABASE_URL=postgresql+psycopg2://luda_user:YOUR_PASSWORD@DB_PRIVATE_IP:5432/luda_analytics
+SECRET_KEY=python -c "import secrets; print(secrets.token_hex(32))" 결과값
 FLASK_ENV=production
-ANTHROPIC_API_KEY=sk-ant-...
+SESSION_COOKIE_SECURE=1
 ```
+
+> `FLASK_ENV=production` 이면 `SECRET_KEY` 와 `DATABASE_URL` 이 **둘 다** 있어야 앱이 뜬다(없으면 즉시 RuntimeError).
+> `chmod 600 .env` 로 권한을 제한하고 `.gitignore` 에 이미 포함돼 있음을 확인한다.
 
 ### 1-6. Gunicorn systemd 서비스
 ```ini
@@ -204,7 +213,8 @@ server {
     ssl_certificate     /etc/letsencrypt/live/analytics.ludaresearch.org/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/analytics.ludaresearch.org/privkey.pem;
 
-    client_max_body_size 50M;
+    # 앱의 MAX_CONTENT_LENGTH(16MB)와 맞춤 — 더 크게 두면 413 대신 nginx 통과 후 앱에서 거부된다
+    client_max_body_size 16M;
 
     location / {
         proxy_pass         http://127.0.0.1:5000;
@@ -368,28 +378,89 @@ conn.close()
 
 ---
 
-## 6. Flask app.py DB 연결 설정
+## 6. Flask DB 연결 설정
 
-```python
-# app.py
-import os
-from flask_sqlalchemy import SQLAlchemy
+DB 접속 문자열은 코드가 아니라 `.env`/환경변수의 `DATABASE_URL` 로만 지정한다 (`config.py` 가 읽고, production 에서는 미설정 시 부팅을 거부한다). 앱이 실제로 어떤 DB를 보는지 확인:
 
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get(
-    'DATABASE_URL',
-    'postgresql://luda_user:YOUR_PASSWORD@DB_PRIVATE_IP:5432/luda_analytics'
-)
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_pre_ping': True,
-    'pool_recycle': 300,
-}
+```bash
+cd /home/ubuntu/app && source venv/bin/activate
+python -c "from app import app; print(app.config['SQLALCHEMY_DATABASE_URI'])"
 ```
 
-### DB 테이블 초기화
+### DB 테이블 생성 / 스키마 업그레이드
+
+스키마는 Flask-Migrate(Alembic)로 관리한다. `init_db.py` 는 **개발용 리셋/샘플 시드 전용**이므로 운영 서버에서는 쓰지 않는다(옵션 1은 모든 데이터를 삭제한다).
+
 ```bash
 cd /home/ubuntu/app
 source venv/bin/activate
-python init_db.py  # 옵션 1 → 2 → 3 순서로 실행
+export FLASK_APP=app.py
+flask db upgrade          # 테이블 생성 및 이후 스키마 변경 반영
+
+# init_db.py 로 이미 테이블을 만든 기존 DB라면 최초 1회만:
+# flask db stamp head
+```
+
+---
+
+## 6-1. 코드 업데이트 배포 순서 (서버가 이미 떠 있는 경우)
+
+```bash
+cd /home/ubuntu/app
+source venv/bin/activate
+
+git pull                                   # 1. 코드 갱신
+pip install -r requirements.txt            # 2. 의존성 (추가된 패키지 반영)
+export FLASK_APP=app.py
+flask db upgrade                           # 3. 스키마 마이그레이션
+sudo systemctl restart luda-analytics      # 4. gunicorn 재시작
+sudo systemctl status luda-analytics       # 5. 상태 확인
+curl -I https://analytics.ludaresearch.org # 6. 200 OK 확인
+
+# 문제 시 로그
+journalctl -u luda-analytics -n 100 --no-pager
+```
+
+`.env` 를 바꿨을 때도 systemd 가 `EnvironmentFile` 로 읽으므로 `restart` 가 필요하다. nginx 설정만 바꿨다면 `sudo nginx -t && sudo systemctl reload nginx`.
+
+## 6-2. 테스트 계정 만들기 (운영 서버)
+
+`init_db.py` 의 샘플 사용자 생성은 `FLASK_ENV=production` 에서 차단된다. 운영 서버에서는 두 가지 방법을 쓴다.
+
+**방법 A — 웹에서 가입 (권장)**
+
+`https://analytics.ludaresearch.org/register` → 이메일/이름/비밀번호(8자 이상) 입력. 별도 승인 절차 없이 바로 로그인된다.
+
+**방법 B — 서버에서 직접 생성**
+
+```bash
+cd /home/ubuntu/app
+source venv/bin/activate
+set -a && source .env && set +a
+python - <<'PY'
+from app import app
+from models import db, User
+
+with app.app_context():
+    email, password = 'test@ludaresearch.org', '바꿀_비밀번호_8자이상'
+    if User.query.filter_by(email=email).first():
+        print('이미 존재')
+    else:
+        user = User(email=email, name='테스트 계정', company='LUDA')
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+        print('생성 완료:', email)
+PY
+```
+
+업로드/시각화 확인은 저장소의 `templates_data/sales_data_template.csv` 를 올려보면 된다(총매출 640,200,000 / 수량 1,568).
+
+계정 수 확인:
+
+```bash
+python -c "from app import app; from models import User
+with app.app_context(): print(User.query.count())"
 ```
 
 ---
