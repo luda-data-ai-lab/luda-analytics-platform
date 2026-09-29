@@ -14,6 +14,11 @@ class User(UserMixin, db.Model):
     name = db.Column(db.String(100), nullable=False)
     company = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # 로그인 실패 누적/잠금 (여러 워커에서 공유되도록 DB에 저장)
+    failed_login_count = db.Column(db.Integer, nullable=False, default=0, server_default='0')
+    locked_until = db.Column(db.DateTime)
+    last_login_at = db.Column(db.DateTime)
     
     datasets = db.relationship('Dataset', backref='user', lazy=True, cascade='all, delete-orphan')
     

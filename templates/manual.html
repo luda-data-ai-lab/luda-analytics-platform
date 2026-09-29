@@ -51,9 +51,12 @@
                            'Create an account and sign in to get a workspace only you can access. Uploaded files and analysis results are stored separately per account.' }}
                     </p>
                     <ol class="manual-steps">
-                        <li>{{ '상단 오른쪽 [회원가입]을 눌러 이름 · 이메일 · 비밀번호를 입력합니다. 비밀번호는 최소 8자입니다.'
+                        <li>{{ '상단 오른쪽 [회원가입]을 눌러 이름 · 이메일 · 비밀번호를 입력합니다. 비밀번호는 최소 8자이며 문자와 숫자(또는 기호)를 함께 포함해야 합니다.'
                                if ko else
-                               'Click [Register] at the top right and enter your name, email and password. Passwords must be at least 8 characters.' }}</li>
+                               'Click [Register] at the top right and enter your name, email and password. Passwords need at least 8 characters and must mix letters with numbers or symbols.' }}</li>
+                        <li>{{ '운영 환경에서는 허용된 회사 이메일 도메인만 가입을 허용하거나 초대 코드를 요구할 수 있습니다. 가입이 막힐 경우 관리자에게 허용 도메인이나 초대 코드를 문의하세요.'
+                               if ko else
+                               'Production deployments may restrict sign-up to allowed company email domains or require an invite code. If registration is blocked, ask your administrator for the allowed domain or invite code.' }}</li>
                         <li>{{ '가입 후 [로그인]에서 이메일과 비밀번호로 로그인합니다.'
                                if ko else
                                'Then sign in from [Login] with your email and password.' }}</li>
@@ -309,8 +312,14 @@
                     <ul class="manual-list mb-0">
                         <li>{{ '데이터셋과 업로드 파일은 소유자만 조회 · 다운로드할 수 있습니다.'
                                if ko else 'Datasets and uploaded files can only be viewed or downloaded by their owner.' }}</li>
-                        <li>{{ '비밀번호는 해시로 저장되며 원문은 보관하지 않습니다.'
-                               if ko else 'Passwords are stored hashed; the original is never kept.' }}</li>
+                        <li>{{ '비밀번호는 해시로 저장되며 원문은 보관하지 않습니다. 상단 사용자 메뉴 → [비밀번호 변경]에서 직접 변경할 수 있습니다.'
+                               if ko else 'Passwords are stored hashed; the original is never kept. You can change it from the user menu → [Change Password].' }}</li>
+                        <li>{{ '로그인을 여러 번 실패하면 계정이 일정 시간(기본 15분) 자동으로 잠깁니다.'
+                               if ko else 'After repeated failed logins the account is temporarily locked (15 minutes by default).' }}</li>
+                        <li>{{ '회사 데이터 탭은 회사명과 이메일 도메인이 모두 같은 계정끼리만 공유됩니다. Gmail · 네이버 같은 무료 웹메일 계정은 회사 뷰를 사용할 수 없습니다.'
+                               if ko else 'The company view is shared only between accounts that share both the company name and the email domain. Free webmail accounts (Gmail, Naver, ...) cannot use it.' }}</li>
+                        <li>{{ '모든 응답에 CSP · X-Frame-Options · nosniff 등 보안 헤더가 적용되고, HTTPS 운영 환경에서는 HSTS가 추가됩니다.'
+                               if ko else 'Security headers (CSP, X-Frame-Options, nosniff, ...) are applied to every response, and HSTS is added in production over HTTPS.' }}</li>
                         <li>{{ '업로드 · 삭제 · 차트 생성 등 모든 변경 요청은 CSRF 토큰으로 보호됩니다.'
                                if ko else 'Every state-changing request (upload, delete, chart generation) is protected by a CSRF token.' }}</li>
                         <li>{{ '공용 PC에서는 사용 후 반드시 로그아웃하세요.'

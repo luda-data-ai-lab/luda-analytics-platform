@@ -43,6 +43,11 @@ from src.dataset_utils import (
     read_dataframe, remove_file, save_upload, upload_folder
 )
 from src.i18n import flash_msg, get_message, msg
+from src.account_security import (
+    MIN_PASSWORD_LENGTH, email_domain, is_corporate_domain, lockout_remaining_minutes,
+    password_policy_error, register_failed_login, register_successful_login,
+    registration_domain_allowed, security_headers
+)
 
 # 기존 이름 유지 (테스트/기존 호출부 호환)
 _go_scatter = go_scatter
@@ -64,7 +69,6 @@ app.config.from_object(Config)
 csrf = CSRFProtect(app)
 
 EMAIL_RE = re.compile(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-MIN_PASSWORD_LENGTH = 8
 
 # 인사이트 문구에서 허용하는 태그만 복원하는 화이트리스트 (업로드 데이터 기반 XSS 방지)
 _ALLOWED_INSIGHT_TAGS = ('strong', 'em', 'br')
@@ -175,6 +179,12 @@ def set_language(language):
         return redirect(referrer)
     return redirect(url_for('index'))
 
+@app.after_request
+def apply_security_headers(response):
+    for header, value in security_headers(app.config.get('IS_PRODUCTION', False)).items():
+        response.headers.setdefault(header, value)
+    return response
+
 @app.context_processor
 def inject_language():
     return dict(current_language=session.get('language', 'ko'))
@@ -210,14 +220,26 @@ def register():
             flash(get_message('올바른 이메일 주소를 입력해주세요.', 'Please enter a valid email address.'), 'danger')
             return redirect(url_for('register'))
 
-        if len(password) < MIN_PASSWORD_LENGTH:
-            flash(
-                get_message(
-                    f'비밀번호는 최소 {MIN_PASSWORD_LENGTH}자 이상이어야 합니다.',
-                    f'Password must be at least {MIN_PASSWORD_LENGTH} characters long.',
-                ),
-                'danger',
-            )
+        if not registration_domain_allowed(email, app.config['REGISTRATION_ALLOWED_DOMAINS']):
+            allowed = ', '.join(app.config['REGISTRATION_ALLOWED_DOMAINS'])
+            flash(get_message(
+                f'허용된 회사 이메일 도메인으로만 가입할 수 있습니다. ({allowed})',
+                f'Registration is limited to the allowed company email domains. ({allowed})'
+            ), 'danger')
+            return redirect(url_for('register'))
+
+        required_code = app.config['REGISTRATION_INVITE_CODE']
+        if required_code and (request.form.get('invite_code') or '').strip() != required_code:
+            flash(get_message('초대 코드가 올바르지 않습니다.', 'Invalid invite code.'), 'danger')
+            return redirect(url_for('register'))
+
+        if password != (request.form.get('password_confirm') or ''):
+            flash(get_message('비밀번호가 일치하지 않습니다.', 'Passwords do not match.'), 'danger')
+            return redirect(url_for('register'))
+
+        policy_error = password_policy_error(password, email=email, name=name)
+        if policy_error:
+            flash(get_message(*policy_error), 'danger')
             return redirect(url_for('register'))
 
         if len(name) > 100 or len(company) > 100:
@@ -238,7 +260,12 @@ def register():
         flash(get_message('회원가입이 완료되었습니다!', 'Registration successful!'), 'success')
         return redirect(url_for('login'))
     
-    return render_template('register.html')
+    return render_template(
+        'register.html',
+        allowed_domains=app.config['REGISTRATION_ALLOWED_DOMAINS'],
+        invite_code_required=bool(app.config['REGISTRATION_INVITE_CODE']),
+        min_password_length=MIN_PASSWORD_LENGTH,
+    )
 
 # 로그인
 @app.route('/login', methods=['GET', 'POST'])
@@ -252,8 +279,21 @@ def login():
         remember = bool(request.form.get('remember', False))
 
         user = User.query.filter_by(email=email).first()
+        locked_minutes = lockout_remaining_minutes(user) if user else 0
 
-        if user and user.check_password(password):
+        if locked_minutes:
+            logger.warning("잠긴 계정에 대한 로그인 시도: user_id=%s", user.id)
+            flash(get_message(
+                f'로그인 시도가 너무 많습니다. {locked_minutes}분 후 다시 시도해주세요.',
+                f'Too many login attempts. Please try again in {locked_minutes} minute(s).'
+            ), 'danger')
+        elif user and user.check_password(password):
+            register_successful_login(user)
+            _commit_or_flash('로그인 기록 저장에 실패했습니다.', 'Failed to store login state.')
+            # 세션 고정 공격 방지: 기존 세션 값을 버리고 새 세션으로 로그인한다.
+            language = session.get('language', app.config['DEFAULT_LANGUAGE'])
+            session.clear()
+            session['language'] = language
             login_user(user, remember=remember)
             flash(get_message('로그인 되었습니다.', 'Successfully logged in.'), 'success')
             next_page = request.args.get('next')
@@ -261,9 +301,76 @@ def login():
                 return redirect(next_page)
             return redirect(url_for('dashboard'))
         else:
+            if user:
+                locked = register_failed_login(
+                    user,
+                    app.config['LOGIN_MAX_FAILED_ATTEMPTS'],
+                    app.config['LOGIN_LOCKOUT_MINUTES'],
+                )
+                _commit_or_flash('로그인 기록 저장에 실패했습니다.', 'Failed to store login state.')
+                if locked:
+                    logger.warning("로그인 실패 임계치 초과로 계정 잠금: user_id=%s", user.id)
+            # 계정 존재 여부를 노출하지 않도록 동일한 문구를 사용한다.
             flash(get_message('이메일 또는 비밀번호가 올바르지 않습니다.', 'Invalid email or password.'), 'danger')
     
     return render_template('login.html')
+
+def company_scope_available(user):
+    """회사 범위 공유 가능 여부: 회사명이 있고, 회사 이메일(웹메일 아님) 계정일 때만 허용"""
+    return bool(user.company) and is_corporate_domain(user.email)
+
+
+def company_peer_ids(user):
+    """같은 회사명 + 같은 이메일 도메인 사용자만 회사 범위에 포함한다.
+
+    회사명은 가입자가 직접 입력하는 값이므로, 이메일 도메인으로 소속을 한 번 더 검증한다.
+    """
+    domain = email_domain(user.email)
+    peers = User.query.filter_by(company=user.company).all()
+    return [u.id for u in peers if email_domain(u.email) == domain] or [user.id]
+
+
+# 비밀번호 변경
+@app.route('/account/password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        current_password = request.form.get('current_password') or ''
+        new_password = request.form.get('new_password') or ''
+        confirm_password = request.form.get('confirm_password') or ''
+
+        if not current_user.check_password(current_password):
+            logger.warning("비밀번호 변경 실패(현재 비밀번호 불일치): user_id=%s", current_user.id)
+            flash(get_message('현재 비밀번호가 올바르지 않습니다.', 'Current password is incorrect.'), 'danger')
+            return redirect(url_for('change_password'))
+
+        if new_password != confirm_password:
+            flash(get_message('새 비밀번호가 일치하지 않습니다.', 'New passwords do not match.'), 'danger')
+            return redirect(url_for('change_password'))
+
+        if new_password == current_password:
+            flash(get_message(
+                '현재 비밀번호와 다른 비밀번호를 사용해주세요.',
+                'Please choose a password different from the current one.'
+            ), 'danger')
+            return redirect(url_for('change_password'))
+
+        policy_error = password_policy_error(
+            new_password, email=current_user.email, name=current_user.name
+        )
+        if policy_error:
+            flash(get_message(*policy_error), 'danger')
+            return redirect(url_for('change_password'))
+
+        current_user.set_password(new_password)
+        if not _commit_or_flash('비밀번호 변경에 실패했습니다.', 'Failed to change password.'):
+            return redirect(url_for('change_password'))
+
+        flash(get_message('비밀번호가 변경되었습니다.', 'Your password has been changed.'), 'success')
+        return redirect(url_for('dashboard'))
+
+    return render_template('change_password.html', min_password_length=MIN_PASSWORD_LENGTH)
+
 
 # 로그아웃
 @app.route('/logout')
@@ -279,20 +386,27 @@ def logout():
 def dashboard():
     view = request.args.get('view', 'my')  # 'my' or 'company'
 
-    if view == 'company' and current_user.company:
-        company_user_ids = [
-            u.id for u in User.query.filter_by(company=current_user.company).all()
-        ]
+    if view == 'company' and company_scope_available(current_user):
         datasets = Dataset.query.filter(
-            Dataset.user_id.in_(company_user_ids)
+            Dataset.user_id.in_(company_peer_ids(current_user))
         ).order_by(Dataset.uploaded_at.desc()).all()
     else:
+        if view == 'company':
+            flash(get_message(
+                '회사 데이터는 같은 회사 이메일 도메인 계정끼리만 공유됩니다. 회사 이메일로 가입한 계정을 사용해주세요.',
+                'Company data is shared only between accounts on the same company email domain.'
+            ), 'warning')
         view = 'my'
         datasets = Dataset.query.filter_by(
             user_id=current_user.id
         ).order_by(Dataset.uploaded_at.desc()).all()
 
-    return render_template('dashboard.html', datasets=datasets, view=view)
+    return render_template(
+        'dashboard.html',
+        datasets=datasets,
+        view=view,
+        company_scope=company_scope_available(current_user),
+    )
 
 # 데이터 업로드
 @app.route('/upload', methods=['GET', 'POST'])
