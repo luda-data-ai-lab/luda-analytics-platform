@@ -554,6 +554,46 @@ def test_advanced_analytics_clamps_cohort_periods(client, user, db_session):
     assert 'chart_cohort' in response.get_data(as_text=True)
 
 
+def test_advanced_analytics_shows_tab_guide_in_both_languages(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    client.get('/set_language/ko')
+    korean = client.get(f'/analytics/{dataset.id}'
+                        '?tab=rfm&customer_col=Customer&date_col=Date&value_col=Revenue')
+    client.get('/set_language/en')
+    english = client.get(f'/analytics/{dataset.id}'
+                         '?tab=rfm&customer_col=Customer&date_col=Date&value_col=Revenue')
+
+    korean_body = korean.get_data(as_text=True)
+    english_body = english.get_data(as_text=True)
+    assert 'RFM 세그먼트' in korean_body and '필요한 컬럼' in korean_body
+    assert 'RFM segments' in english_body and 'Columns needed' in english_body
+    assert '/manual#segment' in korean_body
+
+
+def test_analytics_guide_covers_every_tab(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    for tab in app_module.ANALYTICS_TABS:
+        response = client.get(f'/analytics/{dataset.id}?tab={tab}')
+
+        assert response.status_code == 200
+        guide = app_module.ANALYTICS_TAB_GUIDE[tab]
+        assert guide['ko'][1] in response.get_data(as_text=True)
+
+
+def test_analytics_report_includes_tab_guide(client, user, db_session):
+    dataset = _make_dataset(db_session, user, rows=_segment_rows())
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}/report'
+                          '?tab=pareto&category_col=Category&value_col=Revenue')
+
+    assert app_module.ANALYTICS_TAB_GUIDE['pareto']['ko'][3] in response.get_data(as_text=True)
+
+
 def test_analytics_export_returns_excel_file(client, user, db_session):
     dataset = _make_dataset(db_session, user, rows=_segment_rows())
     _login(client)

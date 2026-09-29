@@ -98,6 +98,10 @@
 
 데이터셋 화면 또는 대시보드의 **고급 분석** 버튼(`/analytics/<dataset_id>`)에서 표준 분석 방법론을 실행합니다. 일곱 개의 탭으로 구성되며(이 장에서는 앞의 세 탭, 나머지 네 탭은 [6장](#6-세그먼트--검정-분석과-리포트-segmentation-testing--reports) 참고), 각 탭은 컬럼 선택 후 **분석 실행**을 누르면 차트·표·자동 인사이트를 함께 보여줍니다.
 
+각 탭 상단에는 **어떤 분석인가요? (What is this analysis?)** 안내 패널이 있어 ① 그 분석이 무엇을 보는지, ② 필요한 컬럼, ③ 결과 해석 방법과 주의점을 한국어·영문으로 보여주고, 이 문서에 대응하는 매뉴얼 절로 가는 링크를 제공합니다. 인쇄·PDF 리포트에도 같은 설명이 포함되어, 리포트를 받는 사람이 별도 설명 없이도 분석 유형을 이해할 수 있습니다.
+
+*Each tab starts with a “What is this analysis?” panel describing the method, the columns it needs and how to read the result (KO/EN), with a link to the matching manual section. The print/PDF report embeds the same explanation so recipients can interpret it without extra context.*
+
 ### 시계열 분석 (Time series)
 
 | 설정 | 설명 |

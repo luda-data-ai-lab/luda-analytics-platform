@@ -33,6 +33,18 @@
         </div>
     </div>
 
+    {% if guide %}
+    <div class="border rounded p-3 mb-4">
+        <p class="mb-2">{{ guide.purpose }}</p>
+        <p class="small text-muted mb-1">
+            <strong>{{ '필요한 컬럼' if ko else 'Columns needed' }}:</strong> {{ guide.columns }}
+        </p>
+        <p class="small text-muted mb-0">
+            <strong>{{ '해석 방법' if ko else 'How to read it' }}:</strong> {{ guide.reading }}
+        </p>
+    </div>
+    {% endif %}
+
     {% if insights %}
     <h5 class="mt-4">{{ '요약 인사이트' if ko else 'Summary insights' }}</h5>
     <ul class="ps-3">

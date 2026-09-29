@@ -2181,6 +2181,127 @@ def _abtest_insights(result, value_col):
     return lines
 
 
+# 탭별 안내: (제목, 무엇을 보는 분석인지, 필요한 컬럼, 해석 방법, 매뉴얼 앵커)
+ANALYTICS_TAB_GUIDE = {
+    'timeseries': {
+        'ko': ('시계열 분석',
+               '기간별 합계·평균 추이와 이동평균, 전기 대비(MoM·YoY) 증감, 단순 추세 예측을 봅니다.',
+               '날짜 컬럼 1개 + 숫자 값 컬럼 1개',
+               '이동평균선은 단기 변동을 걷어낸 흐름입니다. 예측값은 과거 추세의 선형 연장이므로 '
+               '이벤트·계절성이 큰 데이터에서는 참고치로만 쓰세요.'),
+        'en': ('Time series',
+               'Totals or averages per period with a moving average, period-over-period change '
+               '(MoM/YoY) and a simple trend projection.',
+               'One date column + one numeric value column',
+               'The moving average strips short-term noise. The projection is a linear extension of '
+               'past trend, so treat it as a reference when events or seasonality dominate.'),
+        'anchor': 'advanced',
+    },
+    'outlier': {
+        'ko': ('이상치 탐지',
+               'IQR 또는 Z-score 기준으로 정상 범위를 벗어난 행을 찾아 차트와 표에 표시합니다.',
+               '숫자 값 컬럼 1개 (선택: 그룹 컬럼)',
+               '임계값을 낮추면 더 많은 행이 이상치로 잡힙니다. 통계적 이상치는 오류일 수도, '
+               '실제 특이 거래일 수도 있으니 원본 행을 확인한 뒤 판단하세요.'),
+        'en': ('Outlier detection',
+               'Flags rows outside the normal range using IQR or Z-score and marks them on the '
+               'chart and table.',
+               'One numeric column (optional group column)',
+               'Lowering the threshold flags more rows. A statistical outlier may be a data error '
+               'or a genuine exception — check the underlying rows before acting.'),
+        'anchor': 'advanced',
+    },
+    'correlation': {
+        'ko': ('상관 · 기여도',
+               '숫자 컬럼 간 상관계수 행렬과, 선택한 목표 변수에 대한 변수별 기여도를 봅니다.',
+               '숫자 컬럼 2개 이상 + 목표 컬럼 1개',
+               '상관계수는 -1~1 이며 절대값이 클수록 함께 움직입니다. 상관·기여도는 인과관계를 '
+               '증명하지 않습니다 — 숨은 공통 원인이 있을 수 있습니다.'),
+        'en': ('Correlation & drivers',
+               'Correlation matrix across numeric columns plus per-variable contribution to a '
+               'chosen target.',
+               'Two or more numeric columns + one target column',
+               'Coefficients run -1 to 1; larger absolute values move together more. Correlation '
+               'and contribution do not prove causation — a hidden common cause may exist.'),
+        'anchor': 'advanced',
+    },
+    'rfm': {
+        'ko': ('RFM 세그먼트',
+               '고객별 최근성(Recency)·구매빈도(Frequency)·구매금액(Monetary)을 점수화해 '
+               '충성 우수 고객부터 휴면까지 세그먼트로 나눕니다.',
+               '고객 식별 컬럼 + 날짜 컬럼 + 금액 컬럼',
+               'R/F/M 점수는 업로드한 데이터 안에서의 상대 5분위이며 절대 기준이 아닙니다. '
+               '데이터가 바뀌면 같은 고객의 점수도 달라질 수 있습니다.'),
+        'en': ('RFM segments',
+               'Scores each customer on recency, frequency and monetary value, then groups them '
+               'from champions through hibernating.',
+               'Customer column + date column + amount column',
+               'R/F/M scores are relative quintiles within the uploaded data, not absolute '
+               'thresholds — the same customer can score differently on a different dataset.'),
+        'anchor': 'segment',
+    },
+    'pareto': {
+        'ko': ('파레토 (ABC) 분석',
+               '카테고리를 기여도 순으로 정렬해 누적 비중을 보고 A/B/C 등급으로 분류합니다.',
+               '카테고리 컬럼 + 숫자 값 컬럼',
+               '누적 80%까지는 A, 95%까지는 B, 그 이상은 C 입니다. A 등급은 소수지만 매출 대부분을 '
+               '차지하므로 재고·마케팅 우선순위 판단에 씁니다.'),
+        'en': ('Pareto (ABC) analysis',
+               'Sorts categories by contribution, shows the cumulative share and assigns A/B/C '
+               'classes.',
+               'Category column + numeric value column',
+               'A covers up to ~80% cumulative share, B up to ~95%, C above that. A items are few '
+               'but carry most of the value — useful for stock and marketing priorities.'),
+        'anchor': 'segment',
+    },
+    'cohort': {
+        'ko': ('코호트 리텐션',
+               '첫 거래 시점으로 고객을 묶어, 이후 기간마다 얼마나 다시 돌아오는지 비율로 봅니다.',
+               '고객 식별 컬럼 + 날짜 컬럼',
+               '한 행이 하나의 코호트이고 +1, +2 는 첫 거래 이후 경과 기간입니다. 아직 도래하지 '
+               '않은 기간은 0% 가 아니라 빈칸으로 표시됩니다.'),
+        'en': ('Cohort retention',
+               'Groups customers by their first activity period and shows what share returns in '
+               'each later period.',
+               'Customer column + date column',
+               'Each row is a cohort; +1, +2 are periods since first activity. Periods that have '
+               'not elapsed yet are left blank rather than shown as 0%.'),
+        'anchor': 'segment',
+    },
+    'abtest': {
+        'ko': ('A/B 유의성 검정',
+               '두 그룹의 평균(Welch t-검정) 또는 전환율(2표본 z-검정) 차이가 우연으로 보기 '
+               '어려운지 검정합니다.',
+               '그룹 컬럼(2개 그룹) + 숫자 값 컬럼',
+               'p 값이 유의수준(0.05)보다 작으면 "유의함" 입니다. 유의성은 차이가 있다는 신호일 뿐 '
+               '원인을 증명하지 않으며, 표본이 적으면 결과가 불안정합니다.'),
+        'en': ('A/B significance test',
+               'Tests whether the gap between two groups — means (Welch t-test) or conversion '
+               'rates (two-proportion z-test) — is unlikely to be chance.',
+               'Group column (two groups) + numeric value column',
+               'A p-value below the significance level (0.05) is reported as significant. '
+               'Significance signals a difference, not its cause, and small samples are unstable.'),
+        'anchor': 'segment',
+    },
+}
+
+
+def _analytics_guide(tab):
+    """현재 탭의 안내 문구를 현재 언어로 돌려준다."""
+    guide = ANALYTICS_TAB_GUIDE.get(tab)
+    if not guide:
+        return None
+    language = 'ko' if session.get('language', 'ko') == 'ko' else 'en'
+    title, purpose, columns, reading = guide[language]
+    return {
+        'title': title,
+        'purpose': purpose,
+        'columns': columns,
+        'reading': reading,
+        'anchor': guide['anchor'],
+    }
+
+
 def _analytics_options(df):
     return {
         'numeric': numeric_columns(df),
@@ -2367,7 +2488,8 @@ def advanced_analytics(dataset_id):
 
     return render_template('analytics.html', dataset=dataset, columns=columns,
                            options=options, params=params, charts=charts,
-                           insights=insights, tables=tables, stats=stats)
+                           insights=insights, tables=tables, stats=stats,
+                           guide=_analytics_guide(params['tab']))
 
 
 def _insight_text(lines):
@@ -2458,6 +2580,7 @@ def analytics_report(dataset_id):
 
     return render_template('analytics_report.html', dataset=dataset, params=params,
                            charts=charts, insights=insights, tables=tables, stats=stats,
+                           guide=_analytics_guide(params['tab']),
                            generated_at=datetime.now().strftime('%Y-%m-%d %H:%M'))
 
 
