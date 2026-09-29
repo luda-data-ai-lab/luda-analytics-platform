@@ -19,14 +19,15 @@ def test_init_database_creates_tables(flask_app, capsys):
     assert '데이터베이스 테이블이 생성되었습니다' in capsys.readouterr().out
 
 
-def test_create_sample_user_creates_once(db_session, capsys):
+def test_create_sample_user_creates_once(db_session, capsys, monkeypatch):
+    monkeypatch.setenv('SAMPLE_USER_PASSWORD', 'sample-pw-1234')
     init_db.create_sample_user()
     capsys.readouterr()
     init_db.create_sample_user()
 
     assert '이미 존재합니다' in capsys.readouterr().out
     user = User.query.filter_by(email='test@example.com').one()
-    assert user.check_password('test1234')
+    assert user.check_password('sample-pw-1234')
 
 
 def test_create_sample_data_requires_sample_user(db_session, capsys):
