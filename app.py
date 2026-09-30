@@ -1,4 +1,5 @@
 import re
+from functools import wraps
 from urllib.parse import urljoin, urlparse
 
 from flask import (
@@ -44,9 +45,11 @@ from src.dataset_utils import (
 )
 from src.i18n import flash_msg, get_message, msg
 from src.account_security import (
-    MIN_PASSWORD_LENGTH, email_domain, is_corporate_domain, lockout_remaining_minutes,
-    password_policy_error, register_failed_login, register_successful_login,
-    registration_domain_allowed, security_headers
+    APPROVAL_APPROVED, APPROVAL_PENDING, MAX_PURPOSE_LENGTH, MAX_REJECTION_REASON_LENGTH,
+    MIN_PASSWORD_LENGTH, MIN_PURPOSE_LENGTH, approval_block_message, approve_user, email_domain,
+    is_bootstrap_admin, is_corporate_domain, lockout_remaining_minutes, password_policy_error,
+    purpose_error, register_failed_login, register_successful_login, registration_domain_allowed,
+    reject_user, security_headers
 )
 
 # 기존 이름 유지 (테스트/기존 호출부 호환)
@@ -211,6 +214,7 @@ def register():
         password = request.form.get('password') or ''
         name = (request.form.get('name') or '').strip()
         company = (request.form.get('company') or '').strip()  # 회사명 추가 (선택사항)
+        purpose = (request.form.get('purpose') or '').strip()  # 사용 목적 (승인 심사용)
 
         if not email or not password or not name:
             flash(get_message('이메일, 이름, 비밀번호를 모두 입력해주세요.', 'Email, name and password are required.'), 'danger')
@@ -246,18 +250,39 @@ def register():
             flash(get_message('이름 또는 회사명이 너무 깁니다.', 'Name or company is too long.'), 'danger')
             return redirect(url_for('register'))
 
+        purpose_issue = purpose_error(purpose)
+        if purpose_issue:
+            flash(get_message(*purpose_issue), 'danger')
+            return redirect(url_for('register'))
+
         if User.query.filter_by(email=email).first():
             flash(get_message('이미 등록된 이메일입니다.', 'Email already registered.'), 'danger')
             return redirect(url_for('register'))
         
-        user = User(email=email, name=name, company=company)
+        # 설정(ADMIN_EMAILS)에 등록된 관리자는 승인할 관리자가 없는 초기 상황을 풀기 위해 자동 승인한다.
+        is_admin = is_bootstrap_admin(email, app.config['ADMIN_EMAILS'])
+        needs_approval = app.config['REQUIRE_ADMIN_APPROVAL'] and not is_admin
+
+        user = User(
+            email=email, name=name, company=company, purpose=purpose, is_admin=is_admin,
+            approval_status=APPROVAL_PENDING if needs_approval else APPROVAL_APPROVED,
+        )
         user.set_password(password)
+        if not needs_approval:
+            approve_user(user, None)
 
         db.session.add(user)
         if not _commit_or_flash('회원가입 처리 중 오류가 발생했습니다.', 'Registration failed.'):
             return redirect(url_for('register'))
 
-        flash(get_message('회원가입이 완료되었습니다!', 'Registration successful!'), 'success')
+        if needs_approval:
+            logger.info("승인 대기 가입 접수: user_id=%s", user.id)
+            flash(get_message(
+                '가입 신청이 접수되었습니다. 관리자 승인 후 로그인할 수 있습니다.',
+                'Your registration request was received. You can sign in after an administrator approves it.'
+            ), 'info')
+        else:
+            flash(get_message('회원가입이 완료되었습니다!', 'Registration successful!'), 'success')
         return redirect(url_for('login'))
     
     return render_template(
@@ -265,7 +290,22 @@ def register():
         allowed_domains=app.config['REGISTRATION_ALLOWED_DOMAINS'],
         invite_code_required=bool(app.config['REGISTRATION_INVITE_CODE']),
         min_password_length=MIN_PASSWORD_LENGTH,
+        approval_required=app.config['REQUIRE_ADMIN_APPROVAL'],
+        min_purpose_length=MIN_PURPOSE_LENGTH,
+        max_purpose_length=MAX_PURPOSE_LENGTH,
     )
+
+
+def _sync_bootstrap_admin(user):
+    """설정(ADMIN_EMAILS)의 계정이 기존 사용자면 관리자 권한과 승인 상태를 맞춘다."""
+    if not is_bootstrap_admin(user.email, app.config['ADMIN_EMAILS']):
+        return
+    if user.is_admin and user.approval_status == APPROVAL_APPROVED:
+        return
+    user.is_admin = True
+    approve_user(user, None)
+    logger.info("설정의 관리자 계정을 승인 상태로 갱신: user_id=%s", user.id)
+
 
 # 로그인
 @app.route('/login', methods=['GET', 'POST'])
@@ -288,6 +328,13 @@ def login():
                 f'Too many login attempts. Please try again in {locked_minutes} minute(s).'
             ), 'danger')
         elif user and user.check_password(password):
+            _sync_bootstrap_admin(user)
+            blocked = approval_block_message(user)
+            if blocked:
+                logger.info("승인되지 않은 계정의 로그인 시도: user_id=%s status=%s", user.id, user.approval_status)
+                flash(get_message(*blocked), 'warning')
+                return render_template('login.html')
+
             register_successful_login(user)
             _commit_or_flash('로그인 기록 저장에 실패했습니다.', 'Failed to store login state.')
             # 세션 고정 공격 방지: 기존 세션 값을 버리고 새 세션으로 로그인한다.
@@ -370,6 +417,91 @@ def change_password():
         return redirect(url_for('dashboard'))
 
     return render_template('change_password.html', min_password_length=MIN_PASSWORD_LENGTH)
+
+
+def admin_required(view):
+    """관리자만 접근할 수 있는 라우트."""
+    @wraps(view)
+    @login_required
+    def wrapper(*args, **kwargs):
+        if not current_user.is_admin:
+            logger.warning("관리자 전용 페이지 접근 차단: user_id=%s", current_user.id)
+            flash(msg('access_denied'), 'danger')
+            return redirect(url_for('dashboard'))
+        return view(*args, **kwargs)
+    return wrapper
+
+
+@app.context_processor
+def inject_pending_approvals():
+    """관리자 메뉴에 승인 대기 건수를 표시한다."""
+    if not current_user.is_authenticated or not current_user.is_admin:
+        return {'pending_approval_count': 0}
+    return {'pending_approval_count': User.query.filter_by(approval_status=APPROVAL_PENDING).count()}
+
+
+# 관리자: 가입 승인 관리
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    pending = User.query.filter_by(approval_status=APPROVAL_PENDING).order_by(
+        User.created_at.asc()
+    ).all()
+    decided = User.query.filter(User.approval_status != APPROVAL_PENDING).order_by(
+        User.created_at.desc()
+    ).limit(100).all()
+    return render_template(
+        'admin_users.html',
+        pending_users=pending,
+        decided_users=decided,
+        max_rejection_reason_length=MAX_REJECTION_REASON_LENGTH,
+    )
+
+
+def _pending_user_or_none(user_id):
+    user = User.query.get(user_id)
+    if user is None or user.approval_status != APPROVAL_PENDING:
+        flash(get_message(
+            '이미 처리된 신청이거나 존재하지 않는 사용자입니다.',
+            'This request was already handled or the user does not exist.'
+        ), 'warning')
+        return None
+    return user
+
+
+@app.route('/admin/users/<int:user_id>/approve', methods=['POST'])
+@admin_required
+def admin_approve_user(user_id):
+    user = _pending_user_or_none(user_id)
+    if user is None:
+        return redirect(url_for('admin_users'))
+
+    approve_user(user, current_user)
+    if _commit_or_flash('승인 처리에 실패했습니다.', 'Failed to approve the user.'):
+        logger.info("가입 승인: user_id=%s approver_id=%s", user.id, current_user.id)
+        flash(get_message(
+            f'{user.email} 계정을 승인했습니다.',
+            f'Approved {user.email}.'
+        ), 'success')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/<int:user_id>/reject', methods=['POST'])
+@admin_required
+def admin_reject_user(user_id):
+    user = _pending_user_or_none(user_id)
+    if user is None:
+        return redirect(url_for('admin_users'))
+
+    reason = (request.form.get('reason') or '').strip()
+    reject_user(user, current_user, reason)
+    if _commit_or_flash('반려 처리에 실패했습니다.', 'Failed to reject the user.'):
+        logger.info("가입 반려: user_id=%s approver_id=%s", user.id, current_user.id)
+        flash(get_message(
+            f'{user.email} 계정을 반려했습니다.',
+            f'Rejected {user.email}.'
+        ), 'success')
+    return redirect(url_for('admin_users'))
 
 
 # 로그아웃

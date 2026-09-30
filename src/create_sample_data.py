@@ -117,7 +117,8 @@ def create_complete_sample_environment():
         if not sample_user:
             sample_user = User(
                 email='test@example.com',
-                name='테스트 사용자 / Test User'
+                name='테스트 사용자 / Test User',
+                approval_status='approved'
             )
             sample_user.set_password('test1234')
             db.session.add(sample_user)

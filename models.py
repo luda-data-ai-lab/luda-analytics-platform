@@ -13,7 +13,17 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     name = db.Column(db.String(100), nullable=False)
     company = db.Column(db.String(100))
+    purpose = db.Column(db.String(500))  # 가입 시 입력하는 사용 목적 (승인 심사용)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # 관리자 승인 (pending / approved / rejected)
+    is_admin = db.Column(db.Boolean, nullable=False, default=False, server_default=db.false())
+    approval_status = db.Column(
+        db.String(20), nullable=False, default='pending', server_default='pending'
+    )
+    approval_decided_at = db.Column(db.DateTime)
+    approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    rejection_reason = db.Column(db.String(500))
 
     # 로그인 실패 누적/잠금 (여러 워커에서 공유되도록 DB에 저장)
     failed_login_count = db.Column(db.Integer, nullable=False, default=0, server_default='0')

@@ -20,7 +20,8 @@ def client(flask_app, db_session, tmp_path):
 
 @pytest.fixture
 def user(db_session):
-    user = User(email='tmpl@example.com', name='템플릿', company='LUDA')
+    user = User(email='tmpl@example.com', name='템플릿', company='LUDA',
+                approval_status='approved')
     user.set_password('pw1234')
     db_session.session.add(user)
     db_session.session.commit()
