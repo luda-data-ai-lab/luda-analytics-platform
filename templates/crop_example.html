@@ -93,7 +93,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div id="chart1"></div>
+                    <div id="chart1" class="plot-area"></div>
                 </div>
             </div>
         </div>
@@ -108,7 +108,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div id="chart2"></div>
+                    <div id="chart2" class="plot-area"></div>
                 </div>
             </div>
         </div>
@@ -123,7 +123,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div id="chart3"></div>
+                    <div id="chart3" class="plot-area"></div>
                 </div>
             </div>
         </div>
@@ -138,7 +138,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div id="chart4"></div>
+                    <div id="chart4" class="plot-area"></div>
                 </div>
             </div>
         </div>
@@ -153,7 +153,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div id="chart5"></div>
+                    <div id="chart5" class="plot-area"></div>
                 </div>
             </div>
         </div>
@@ -168,7 +168,7 @@
                     </h5>
                 </div>
                 <div class="card-body">
-                    <div id="chart6"></div>
+                    <div id="chart6" class="plot-area"></div>
                 </div>
             </div>
         </div>
@@ -228,31 +228,22 @@
     const charts = {{ charts|safe }};
 
     // 차트 렌더링
+    function renderChart(divId, chartJson) {
+        if (!chartJson) return;
+        const fig = JSON.parse(chartJson);
+        const layout = Object.assign({}, fig.layout);
+        delete layout.height;
+        delete layout.width;
+        Plotly.newPlot(divId, fig.data, layout, {responsive: true});
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
-        if (charts.crop_avg_yield) {
-            const chart1Data = JSON.parse(charts.crop_avg_yield);
-            Plotly.newPlot('chart1', chart1Data.data, chart1Data.layout);
-        }
-        if (charts.soil_yield) {
-            const chart2Data = JSON.parse(charts.soil_yield);
-            Plotly.newPlot('chart2', chart2Data.data, chart2Data.layout);
-        }
-        if (charts.rainfall_yield) {
-            const chart3Data = JSON.parse(charts.rainfall_yield);
-            Plotly.newPlot('chart3', chart3Data.data, chart3Data.layout);
-        }
-        if (charts.temp_yield) {
-            const chart4Data = JSON.parse(charts.temp_yield);
-            Plotly.newPlot('chart4', chart4Data.data, chart4Data.layout);
-        }
-        if (charts.crop_distribution) {
-            const chart5Data = JSON.parse(charts.crop_distribution);
-            Plotly.newPlot('chart5', chart5Data.data, chart5Data.layout);
-        }
-        if (charts.fertilizer_yield) {
-            const chart6Data = JSON.parse(charts.fertilizer_yield);
-            Plotly.newPlot('chart6', chart6Data.data, chart6Data.layout);
-        }
+        renderChart('chart1', charts.crop_avg_yield);
+        renderChart('chart2', charts.soil_yield);
+        renderChart('chart3', charts.rainfall_yield);
+        renderChart('chart4', charts.temp_yield);
+        renderChart('chart5', charts.crop_distribution);
+        renderChart('chart6', charts.fertilizer_yield);
     });
 </script>
 {% endblock %}

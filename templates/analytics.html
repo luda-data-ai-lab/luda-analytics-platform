@@ -461,7 +461,10 @@
 <script>
 function renderChart(divId, chartData) {
     try {
-        Plotly.newPlot(divId, chartData.data, chartData.layout, {responsive: true});
+        const layout = Object.assign({}, chartData.layout);
+        delete layout.height;
+        delete layout.width;
+        Plotly.newPlot(divId, chartData.data, layout, {responsive: true});
     } catch (error) {
         console.error('Chart render error:', divId, error);
     }

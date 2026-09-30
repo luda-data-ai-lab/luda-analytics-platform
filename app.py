@@ -3154,7 +3154,6 @@ def crop_example():
                       color='Crop_Type',
                       title='Rainfall vs Crop Yield',
                       labels={'Rainfall_mm': 'Rainfall (mm)', 'Crop_Yield_kg': 'Yield (kg)'},
-                      trendline="ols",
                       size='Crop_Yield_kg',
                       size_max=15)
     fig3.update_layout(height=400)
@@ -3165,7 +3164,6 @@ def crop_example():
                       color='Crop_Type',
                       title='Temperature vs Crop Yield',
                       labels={'Temperature_C': 'Temperature (°C)', 'Crop_Yield_kg': 'Yield (kg)'},
-                      trendline="ols",
                       size='Crop_Yield_kg',
                       size_max=15)
     fig4.update_layout(height=400)
@@ -3185,7 +3183,6 @@ def crop_example():
                       color='Crop_Type',
                       title='Fertilizer Usage vs Crop Yield',
                       labels={'Fertilizer_kg': 'Fertilizer (kg)', 'Crop_Yield_kg': 'Yield (kg)'},
-                      trendline="ols",
                       size='Crop_Yield_kg',
                       size_max=15)
     fig6.update_layout(height=400)
