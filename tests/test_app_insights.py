@@ -1,6 +1,7 @@
 """app.generate_insights 및 템플릿별 인사이트 함수 테스트."""
 
 import pandas as pd
+from flask import session as flask_session
 
 import app as app_module
 
@@ -90,13 +91,23 @@ def test_generate_insights_customer(customer_df):
         'category_sales', 'quantity_revenue', 'daily_quantity',
     }
     assert 'VIP' in insights['region_sales']
+    assert '90+ days' in insights['daily_quantity']
+
+
+def test_generate_insights_customer_korean(customer_df):
+    with app_module.app.test_request_context():
+        flask_session['language'] = 'ko'
+        insights = app_module.generate_insights(customer_df)
+
     assert '90일' in insights['daily_quantity']
 
 
 def test_customer_insight_falls_back_to_age_purchase_correlation(customer_df):
     df = customer_df.drop(columns=['Last_Purchase_Days'])
 
-    ins = app_module._insights_customer(df)
+    with app_module.app.test_request_context():
+        flask_session['language'] = 'ko'
+        ins = app_module._insights_customer(df)
 
     assert '연령-구매횟수 상관계수' in ins['daily_quantity']
 

@@ -12,7 +12,7 @@
 } %}
 {% set tab_label = tab_labels.get(params.tab, (params.tab, params.tab)) %}
 
-{% block title %}{{ '분석 리포트' if ko else 'Analysis report' }} - {{ dataset.name }}{% endblock %}
+{% block title %}{{ '분석 리포트' if ko else 'Analysis report' }} - {{ dataset.name | ds_name }}{% endblock %}
 
 {% block content %}
 <div class="container analytics-report my-4">
@@ -20,7 +20,7 @@
         <div>
             <h2 class="mb-1">{{ tab_label[0] if ko else tab_label[1] }}</h2>
             <p class="text-muted mb-0">
-                {{ dataset.name }} · {{ generated_at }}
+                {{ dataset.name | ds_name }} · {{ generated_at }}
             </p>
         </div>
         <div class="d-flex gap-2 d-print-none">
