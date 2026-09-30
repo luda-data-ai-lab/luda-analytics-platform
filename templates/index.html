@@ -34,6 +34,12 @@
             <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg px-4">
                 {{ '로그인' if current_language == 'ko' else 'Login' }}
             </a>
+            {% if demo_video %}
+            <a href="#demo" class="btn btn-outline-secondary btn-lg px-4">
+                <i class="bi bi-play-btn"></i>
+                {{ '데모 보기' if current_language == 'ko' else 'Watch demo' }}
+            </a>
+            {% endif %}
         </div>
     </div>
 
@@ -70,6 +76,12 @@
         </div>
     </div>
 </div>
+
+{% if demo_video %}
+<div class="container px-4 pt-4" id="demo">
+    {% include '_demo_video.html' %}
+</div>
+{% endif %}
 
 <!-- Features Section -->
 <div class="container px-4 py-5">

@@ -105,6 +105,9 @@ class Config:
     # 관리자 계정 이메일 목록. 예: ADMIN_EMAILS=admin@ludaresearch.org,ops@ludaresearch.org
     ADMIN_EMAILS = parse_email_list(os.environ.get('ADMIN_EMAILS'))
 
+    # 데모 영상 링크 (YouTube 또는 https mp4). 비우면 화면에 표시되지 않는다.
+    DEMO_VIDEO_URL = (os.environ.get('DEMO_VIDEO_URL') or '').strip()
+
     # 언어 설정
     LANGUAGES = ['ko', 'en']
     DEFAULT_LANGUAGE = 'ko'
