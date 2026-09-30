@@ -184,7 +184,7 @@
                 <div class="col-md-3">
                     <label class="form-label fw-bold" for="customer_col">{{ '고객 식별 컬럼' if ko else 'Customer column' }}</label>
                     <select class="form-select" id="customer_col" name="customer_col">
-                        {% for column in options.categorical or columns %}
+                        {% for column in options.identifier or columns %}
                         <option value="{{ column }}" {% if column == params.customer_col %}selected{% endif %}>{{ column }}</option>
                         {% endfor %}
                     </select>
@@ -228,7 +228,7 @@
                 <div class="col-md-3">
                     <label class="form-label fw-bold" for="customer_col">{{ '고객 식별 컬럼' if ko else 'Customer column' }}</label>
                     <select class="form-select" id="customer_col" name="customer_col">
-                        {% for column in options.categorical or columns %}
+                        {% for column in options.identifier or columns %}
                         <option value="{{ column }}" {% if column == params.customer_col %}selected{% endif %}>{{ column }}</option>
                         {% endfor %}
                     </select>

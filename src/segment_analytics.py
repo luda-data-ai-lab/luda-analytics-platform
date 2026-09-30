@@ -129,7 +129,8 @@ def rfm_analysis(df, customer_col, date_col, value_col, top_n=20):
 
     ordered = rfm.sort_values('monetary', ascending=False)
     return {
-        'table': ordered.head(top_n).reset_index(),
+        # 표 머리글에는 사용자가 고른 실제 컬럼명을 보여준다
+        'table': ordered.head(top_n).reset_index().rename(columns={'customer': customer_col}),
         'segments': counts.to_dict(),
         'stats': {
             'customers': int(len(rfm)),

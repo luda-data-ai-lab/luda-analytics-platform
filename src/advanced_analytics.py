@@ -64,6 +64,31 @@ def categorical_columns(df, max_unique=50):
     ]
 
 
+# 고객/회원 키로 쓰일 가능성이 높은 컬럼명 조각 (선택 목록 상단에 노출)
+IDENTIFIER_NAME_HINTS = (
+    'id', 'code', 'customer', 'client', 'user', 'member', 'account', 'email',
+    '고객', '회원', '거래처', '코드', '번호',
+)
+
+
+def identifier_columns(df, min_unique=3):
+    """고객 식별자로 쓸 만한 컬럼 (고유값 상한 없음 — ID 는 값이 많다).
+
+    `categorical_columns` 는 고유값 50개 상한이 있어 고객 ID 가 걸러지므로
+    RFM/코호트의 고객 컬럼 선택에는 이 목록을 쓴다.
+    """
+    dates = set(datetime_columns(df))
+    candidates = [
+        column for column in df.columns
+        if column not in dates and df[column].nunique(dropna=True) >= min_unique
+    ]
+    hinted = [
+        column for column in candidates
+        if any(hint in str(column).lower() for hint in IDENTIFIER_NAME_HINTS)
+    ]
+    return hinted + [column for column in candidates if column not in hinted]
+
+
 def _numeric_series(df, column):
     return pd.to_numeric(df[column], errors='coerce')
 

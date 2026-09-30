@@ -533,6 +533,28 @@ def test_advanced_analytics_renders_rfm_and_pareto_tabs(client, user, db_session
     assert 'chart_pareto' in pareto.get_data(as_text=True)
 
 
+def test_rfm_tab_offers_high_cardinality_customer_id_column(client, user, db_session):
+    """고객 ID 는 고유값이 많아도 선택 목록과 표에 보여야 한다."""
+    rows = []
+    for index in range(60):
+        for month in (1, 2, 3):
+            rows.append({
+                'customer_id': f'C{index:03d}',
+                'Date': f'2024-{month:02d}-05',
+                'Revenue': 100 + index,
+            })
+    dataset = _make_dataset(db_session, user, rows=rows)
+    _login(client)
+
+    response = client.get(f'/analytics/{dataset.id}'
+                          '?tab=rfm&customer_col=customer_id&date_col=Date&value_col=Revenue')
+    body = response.get_data(as_text=True)
+
+    assert '<option value="customer_id" selected>' in body
+    assert 'chart_rfm_segments' in body
+    assert '>customer_id</th>' in body
+
+
 def test_advanced_analytics_renders_cohort_and_abtest_tabs(client, user, db_session):
     dataset = _make_dataset(db_session, user, rows=_segment_rows())
     _login(client)

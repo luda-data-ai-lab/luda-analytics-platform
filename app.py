@@ -25,7 +25,7 @@ import plotly.graph_objs as go
 from models import db, User, Dataset, DataRecord, DataView, OCRSession
 from src.advanced_analytics import (
     AGG_FUNCS, FREQ_RULES, categorical_columns, contribution_analysis, correlation_analysis,
-    datetime_columns, numeric_columns, outlier_analysis, timeseries_analysis
+    datetime_columns, identifier_columns, numeric_columns, outlier_analysis, timeseries_analysis
 )
 from src.segment_analytics import (
     AB_METRICS, ab_test_analysis, cohort_analysis, pareto_analysis, rfm_analysis
@@ -2722,7 +2722,7 @@ ANALYTICS_TAB_REQUIREMENTS = {
         (TWO_NUMERIC_COLUMNS, '숫자 컬럼 2개 이상', 'At least two numeric columns', 'numeric'),
     ],
     'rfm': [
-        ('customer_col', '고객 ID 컬럼', 'Customer ID column', 'categorical'),
+        ('customer_col', '고객 ID 컬럼', 'Customer ID column', 'identifier'),
         ('date_col', '날짜 컬럼', 'Date column', 'datetime'),
         ('value_col', '거래 금액 컬럼', 'Amount column', 'numeric'),
     ],
@@ -2731,7 +2731,7 @@ ANALYTICS_TAB_REQUIREMENTS = {
         ('value_col', '숫자 값 컬럼', 'Numeric value column', 'numeric'),
     ],
     'cohort': [
-        ('customer_col', '고객 ID 컬럼', 'Customer ID column', 'categorical'),
+        ('customer_col', '고객 ID 컬럼', 'Customer ID column', 'identifier'),
         ('date_col', '날짜 컬럼', 'Date column', 'datetime'),
     ],
     'abtest': [
@@ -2857,6 +2857,7 @@ def _analytics_options(df):
         'numeric': numeric_columns(df),
         'datetime': datetime_columns(df),
         'categorical': categorical_columns(df),
+        'identifier': identifier_columns(df),
         'freqs': list(FREQ_RULES),
         'cohort_freqs': list(COHORT_FREQS),
         'aggs': list(AGG_FUNCS),
@@ -2873,6 +2874,7 @@ def _analytics_params(columns, options):
     first_numeric = options['numeric'][0] if options['numeric'] else None
     first_date = options['datetime'][0] if options['datetime'] else None
     first_category = options['categorical'][0] if options['categorical'] else None
+    first_identifier = options['identifier'][0] if options['identifier'] else first_category
     return {
         'tab': tab,
         'date_col': _column_arg('date_col', columns, first_date),
@@ -2885,7 +2887,7 @@ def _analytics_params(columns, options):
         'threshold': _float_arg('threshold', 1.5, 0.5, 6.0),
         'group_col': _column_arg('group_col', columns),
         'target_col': _column_arg('target_col', columns, first_numeric),
-        'customer_col': _column_arg('customer_col', columns, first_category),
+        'customer_col': _column_arg('customer_col', columns, first_identifier),
         'category_col': _column_arg('category_col', columns, first_category),
         'cohort_freq': (request.args.get('cohort_freq')
                         if request.args.get('cohort_freq') in COHORT_FREQS else 'M'),
@@ -2958,8 +2960,7 @@ def _run_analytics(df, columns, params):
             table = result['table']
             table['segment'] = [_segment_label(value) for value in table['segment']]
             tables['rfm'] = {
-                'columns': ['customer', 'recency', 'frequency', 'monetary',
-                            'r_score', 'f_score', 'm_score', 'segment'],
+                'columns': table.columns.tolist(),
                 'rows': _table_rows(table.round(2)),
             }
 

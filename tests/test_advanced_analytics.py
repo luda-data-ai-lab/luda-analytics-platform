@@ -6,7 +6,7 @@ import pytest
 
 from src.advanced_analytics import (
     categorical_columns, contribution_analysis, correlation_analysis, datetime_columns,
-    numeric_columns, outlier_analysis, resample_series, timeseries_analysis
+    identifier_columns, numeric_columns, outlier_analysis, resample_series, timeseries_analysis
 )
 
 
@@ -39,6 +39,28 @@ def test_categorical_columns_excludes_constant_and_high_cardinality():
     })
 
     assert categorical_columns(df, max_unique=3) == ['group']
+
+
+def test_identifier_columns_keeps_high_cardinality_ids_first():
+    df = pd.DataFrame({
+        'Segment': ['a', 'b', 'c'] * 40,
+        'Customer_ID': [f'C{index:03d}' for index in range(120)],
+        'Date': pd.date_range('2024-01-01', periods=120).strftime('%Y-%m-%d'),
+    })
+
+    columns = identifier_columns(df)
+
+    # 고유값 상한이 없어 고객 ID 가 포함되고, 이름으로 추정해 앞에 온다.
+    assert columns[0] == 'Customer_ID'
+    assert 'Segment' in columns
+    assert 'Date' not in columns
+    assert 'Customer_ID' not in categorical_columns(df)
+
+
+def test_identifier_columns_skips_near_constant_columns():
+    df = pd.DataFrame({'flag': ['y', 'n', 'y', 'n'], 'user': ['u1', 'u2', 'u3', 'u4']})
+
+    assert identifier_columns(df, min_unique=3) == ['user']
 
 
 def test_resample_series_aggregates_by_month(monthly_df):
