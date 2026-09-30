@@ -58,7 +58,8 @@ def create_sample_user():
         password = os.environ.get('SAMPLE_USER_PASSWORD') or secrets.token_urlsafe(16)
         sample_user = User(
             email='test@example.com',
-            name='테스트 사용자 / Test User'
+            name='테스트 사용자 / Test User',
+            approval_status='approved'
         )
         sample_user.set_password(password)
         

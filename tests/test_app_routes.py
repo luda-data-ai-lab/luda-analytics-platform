@@ -21,7 +21,8 @@ def client(flask_app, db_session, tmp_path):
 
 @pytest.fixture
 def user(db_session):
-    user = User(email='route@example.com', name='라우트', company='LUDA')
+    user = User(email='route@example.com', name='라우트', company='LUDA',
+                approval_status='approved')
     user.set_password('pw1234')
     db_session.session.add(user)
     db_session.session.commit()
@@ -63,6 +64,7 @@ def test_register_creates_user(client, db_session):
     response = client.post('/register', data={
         'email': 'new@example.com', 'password': 'Luda-analyze-7', 'name': '신규',
         'password_confirm': 'Luda-analyze-7', 'company': 'LUDA',
+        'purpose': '매출 데이터를 업로드해 지점별 실적을 분석합니다.',
     })
 
     assert response.status_code == 302
@@ -146,7 +148,8 @@ def test_dashboard_lists_own_datasets(client, user, db_session):
 
 
 def test_dashboard_company_view_includes_colleague_datasets(client, user, db_session):
-    colleague = User(email='mate@example.com', name='동료', company='LUDA')
+    colleague = User(email='mate@example.com', name='동료', company='LUDA',
+                     approval_status='approved')
     colleague.set_password('pw')
     db_session.session.add(colleague)
     db_session.session.commit()

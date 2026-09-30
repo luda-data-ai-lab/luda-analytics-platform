@@ -3,9 +3,11 @@
 from datetime import datetime, timedelta
 
 from src.account_security import (
-    email_domain, email_local_part, is_corporate_domain, lockout_remaining_minutes,
-    parse_domain_list, password_policy_error, register_failed_login,
-    register_successful_login, registration_domain_allowed, security_headers
+    APPROVAL_APPROVED, APPROVAL_PENDING, APPROVAL_REJECTED, MAX_REJECTION_REASON_LENGTH,
+    approval_block_message, approve_user, email_domain, email_local_part, is_bootstrap_admin,
+    is_corporate_domain, lockout_remaining_minutes, parse_domain_list, parse_email_list,
+    password_policy_error, purpose_error, register_failed_login, register_successful_login,
+    registration_domain_allowed, reject_user, security_headers
 )
 
 
@@ -97,3 +99,63 @@ def test_security_headers_add_hsts_only_in_production():
     assert dev['X-Content-Type-Options'] == 'nosniff'
     assert "frame-ancestors 'none'" in dev['Content-Security-Policy']
     assert 'https://cdn.plot.ly' in dev['Content-Security-Policy']
+
+
+class FakeApplicant:
+    def __init__(self, approval_status=APPROVAL_PENDING, rejection_reason=None):
+        self.approval_status = approval_status
+        self.rejection_reason = rejection_reason
+        self.approval_decided_at = None
+        self.approved_by_id = None
+
+
+class FakeApprover:
+    id = 7
+
+
+def test_parse_email_list_normalizes_separators():
+    assert parse_email_list('Admin@Luda.org, ops@luda.org; qa@luda.org') == [
+        'admin@luda.org', 'ops@luda.org', 'qa@luda.org'
+    ]
+    assert parse_email_list('') == []
+
+
+def test_is_bootstrap_admin_is_case_insensitive():
+    admins = ['admin@luda.org']
+    assert is_bootstrap_admin('ADMIN@luda.org', admins)
+    assert not is_bootstrap_admin('other@luda.org', admins)
+    assert not is_bootstrap_admin('admin@luda.org', [])
+
+
+def test_purpose_error_requires_meaningful_text():
+    assert purpose_error('') is not None
+    assert purpose_error('  짧음  ') is not None
+    assert purpose_error('x' * 501) is not None
+    assert purpose_error('월별 매출 데이터를 업로드해 지점별 실적을 분석합니다.') is None
+
+
+def test_approve_and_reject_record_decision():
+    applicant = FakeApplicant()
+    now = datetime(2026, 1, 1, 9, 0, 0)
+
+    approve_user(applicant, FakeApprover(), now=now)
+    assert applicant.approval_status == APPROVAL_APPROVED
+    assert applicant.approval_decided_at == now
+    assert applicant.approved_by_id == 7
+    assert applicant.rejection_reason is None
+
+    reject_user(applicant, FakeApprover(), 'x' * (MAX_REJECTION_REASON_LENGTH + 10), now=now)
+    assert applicant.approval_status == APPROVAL_REJECTED
+    assert len(applicant.rejection_reason) == MAX_REJECTION_REASON_LENGTH
+
+
+def test_approval_block_message_only_allows_approved_users():
+    assert approval_block_message(FakeApplicant(approval_status=APPROVAL_APPROVED)) is None
+
+    pending_ko, pending_en = approval_block_message(FakeApplicant())
+    assert '승인' in pending_ko and 'approval' in pending_en
+
+    rejected_ko, _ = approval_block_message(
+        FakeApplicant(approval_status=APPROVAL_REJECTED, rejection_reason='사용 목적 불충분')
+    )
+    assert '사용 목적 불충분' in rejected_ko

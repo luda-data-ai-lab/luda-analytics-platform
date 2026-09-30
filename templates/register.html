@@ -14,6 +14,17 @@
                     {{ '회원가입' if current_language == 'ko' else 'Sign Up' }}
                 </h2>
                 
+                {% if approval_required %}
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    {% if current_language == 'ko' %}
+                        가입 신청 후 관리자 승인이 완료되면 로그인할 수 있습니다.
+                    {% else %}
+                        You can sign in once an administrator approves your request.
+                    {% endif %}
+                </div>
+                {% endif %}
+
                 <form method="POST" action="{{ url_for('register') }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
@@ -75,6 +86,22 @@
                         </div>
                     </div>
                     {% endif %}
+
+                    <div class="mb-3">
+                        <label for="purpose" class="form-label">
+                            {{ '사용 목적' if current_language == 'ko' else 'Intended Use' }}
+                        </label>
+                        <textarea class="form-control" id="purpose" name="purpose" rows="3" required
+                                  minlength="{{ min_purpose_length }}" maxlength="{{ max_purpose_length }}"
+                                  placeholder="{{ '예: 월별 매출 데이터를 업로드해 지점별 실적을 분석하려고 합니다.' if current_language == 'ko' else 'e.g. Upload monthly sales data to analyze branch performance.' }}"></textarea>
+                        <div class="form-text">
+                            {% if current_language == 'ko' %}
+                                어떤 데이터를 어떤 목적으로 분석하실지 {{ min_purpose_length }}자 이상 적어주세요. 관리자 승인 심사에 사용됩니다.
+                            {% else %}
+                                Describe what data you will analyze and why (at least {{ min_purpose_length }} characters). Administrators use this to review your request.
+                            {% endif %}
+                        </div>
+                    </div>
 
                     <div class="mb-3">
                         <label for="password" class="form-label">

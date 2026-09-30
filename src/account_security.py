@@ -23,6 +23,16 @@ COMMON_PASSWORDS = frozenset({
 
 MIN_PASSWORD_LENGTH = 8
 
+# 가입 시 입력하는 사용 목적 길이 제한
+MIN_PURPOSE_LENGTH = 10
+MAX_PURPOSE_LENGTH = 500
+
+# 관리자 승인 상태
+APPROVAL_PENDING = 'pending'
+APPROVAL_APPROVED = 'approved'
+APPROVAL_REJECTED = 'rejected'
+MAX_REJECTION_REASON_LENGTH = 500
+
 
 def email_domain(email):
     """이메일의 도메인을 소문자로 반환 (없으면 빈 문자열)."""
@@ -56,6 +66,73 @@ def parse_domain_list(raw):
         return []
     parts = [p.strip().lower().lstrip('@') for p in raw.replace(';', ',').replace(' ', ',').split(',')]
     return [p for p in parts if p]
+
+
+def parse_email_list(raw):
+    """쉼표/공백으로 구분된 이메일 목록 문자열을 소문자로 정규화한다."""
+    if not raw:
+        return []
+    parts = [p.strip().lower() for p in raw.replace(';', ',').replace(' ', ',').split(',')]
+    return [p for p in parts if p]
+
+
+def is_bootstrap_admin(email, admin_emails):
+    """설정(ADMIN_EMAILS)에 등록된 관리자 계정인지 여부."""
+    return bool(email) and email.strip().lower() in set(admin_emails or ())
+
+
+def purpose_error(purpose):
+    """사용 목적 입력이 부적절하면 (한국어, 영어) 메시지를 반환한다."""
+    text = (purpose or '').strip()
+    if len(text) < MIN_PURPOSE_LENGTH:
+        return (
+            f'사용 목적을 {MIN_PURPOSE_LENGTH}자 이상 구체적으로 입력해주세요.',
+            f'Please describe your intended use in at least {MIN_PURPOSE_LENGTH} characters.',
+        )
+    if len(text) > MAX_PURPOSE_LENGTH:
+        return (
+            f'사용 목적은 {MAX_PURPOSE_LENGTH}자 이내로 입력해주세요.',
+            f'Intended use must be {MAX_PURPOSE_LENGTH} characters or fewer.',
+        )
+    return None
+
+
+def approve_user(user, approver, now=None):
+    """가입 신청을 승인 상태로 바꾼다."""
+    user.approval_status = APPROVAL_APPROVED
+    user.rejection_reason = None
+    user.approval_decided_at = now or datetime.utcnow()
+    user.approved_by_id = approver.id if approver else None
+
+
+def reject_user(user, approver, reason='', now=None):
+    """가입 신청을 거절 상태로 바꾸고 사유를 남긴다."""
+    user.approval_status = APPROVAL_REJECTED
+    user.rejection_reason = (reason or '').strip()[:MAX_REJECTION_REASON_LENGTH] or None
+    user.approval_decided_at = now or datetime.utcnow()
+    user.approved_by_id = approver.id if approver else None
+
+
+def approval_block_message(user):
+    """로그인을 막아야 하는 승인 상태면 (한국어, 영어) 안내 문구를 반환한다."""
+    status = user.approval_status
+    if status == APPROVAL_APPROVED:
+        return None
+    if status == APPROVAL_REJECTED:
+        reason = (user.rejection_reason or '').strip()
+        if reason:
+            return (
+                f'가입 신청이 반려되었습니다. (사유: {reason})',
+                f'Your registration was rejected. (reason: {reason})',
+            )
+        return (
+            '가입 신청이 반려되었습니다. 관리자에게 문의해주세요.',
+            'Your registration was rejected. Please contact an administrator.',
+        )
+    return (
+        '관리자 승인 대기 중입니다. 승인 후 로그인할 수 있습니다.',
+        'Your account is awaiting administrator approval.',
+    )
 
 
 def password_policy_error(password, email='', name=''):

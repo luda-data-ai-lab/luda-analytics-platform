@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if current_language == 'ko' %}가입 승인 관리 - 데이터 분석 플랫폼{% else %}Access Requests - Data Analytics Platform{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">
+        <i class="bi bi-person-check text-primary"></i>
+        {{ '가입 승인 관리' if current_language == 'ko' else 'Access Requests' }}
+    </h2>
+    <span class="badge bg-warning text-dark">
+        {% if current_language == 'ko' %}승인 대기 {{ pending_users|length }}건{% else %}{{ pending_users|length }} pending{% endif %}
+    </span>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-header bg-white">
+        <strong>{{ '승인 대기' if current_language == 'ko' else 'Pending' }}</strong>
+    </div>
+    <div class="card-body">
+        {% if pending_users %}
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>{{ '이름' if current_language == 'ko' else 'Name' }}</th>
+                        <th>{{ '이메일' if current_language == 'ko' else 'Email' }}</th>
+                        <th>{{ '회사명' if current_language == 'ko' else 'Company' }}</th>
+                        <th>{{ '사용 목적' if current_language == 'ko' else 'Intended Use' }}</th>
+                        <th>{{ '신청일' if current_language == 'ko' else 'Requested' }}</th>
+                        <th class="text-end">{{ '처리' if current_language == 'ko' else 'Action' }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in pending_users %}
+                    <tr>
+                        <td>{{ user.name }}</td>
+                        <td>{{ user.email }}</td>
+                        <td>{{ user.company or '-' }}</td>
+                        <td class="text-break">{{ user.purpose or '-' }}</td>
+                        <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '-' }}</td>
+                        <td class="text-end">
+                            <form method="POST" action="{{ url_for('admin_approve_user', user_id=user.id) }}"
+                                  class="d-inline">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-sm btn-success">
+                                    <i class="bi bi-check-lg"></i>
+                                    {{ '승인' if current_language == 'ko' else 'Approve' }}
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ url_for('admin_reject_user', user_id=user.id) }}"
+                                  class="d-inline-flex gap-1 align-items-center">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="text" class="form-control form-control-sm" name="reason"
+                                       maxlength="{{ max_rejection_reason_length }}"
+                                       placeholder="{{ '반려 사유' if current_language == 'ko' else 'Reason' }}">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">
+                                    <i class="bi bi-x-lg"></i>
+                                    {{ '반려' if current_language == 'ko' else 'Reject' }}
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">
+            {{ '승인 대기 중인 신청이 없습니다.' if current_language == 'ko' else 'No pending requests.' }}
+        </p>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <strong>{{ '처리 내역' if current_language == 'ko' else 'Decided' }}</strong>
+    </div>
+    <div class="card-body">
+        {% if decided_users %}
+        <div class="table-responsive">
+            <table class="table align-middle">
+                <thead>
+                    <tr>
+                        <th>{{ '이름' if current_language == 'ko' else 'Name' }}</th>
+                        <th>{{ '이메일' if current_language == 'ko' else 'Email' }}</th>
+                        <th>{{ '상태' if current_language == 'ko' else 'Status' }}</th>
+                        <th>{{ '반려 사유' if current_language == 'ko' else 'Reason' }}</th>
+                        <th>{{ '처리일' if current_language == 'ko' else 'Decided' }}</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in decided_users %}
+                    <tr>
+                        <td>
+                            {{ user.name }}
+                            {% if user.is_admin %}
+                            <span class="badge bg-primary">{{ '관리자' if current_language == 'ko' else 'Admin' }}</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ user.email }}</td>
+                        <td>
+                            {% if user.approval_status == 'approved' %}
+                            <span class="badge bg-success">{{ '승인' if current_language == 'ko' else 'Approved' }}</span>
+                            {% else %}
+                            <span class="badge bg-danger">{{ '반려' if current_language == 'ko' else 'Rejected' }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-break">{{ user.rejection_reason or '-' }}</td>
+                        <td>{{ user.approval_decided_at.strftime('%Y-%m-%d') if user.approval_decided_at else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted mb-0">
+            {{ '처리 내역이 없습니다.' if current_language == 'ko' else 'No decisions yet.' }}
+        </p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

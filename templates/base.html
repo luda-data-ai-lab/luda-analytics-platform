@@ -88,6 +88,15 @@
                             {{ current_user.name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
+                            {% if current_user.is_admin %}
+                            <li><a class="dropdown-item" href="{{ url_for('admin_users') }}">
+                                <i class="bi bi-person-check"></i>
+                                {% if current_language == 'ko' %}가입 승인 관리{% else %}Access Requests{% endif %}
+                                {% if pending_approval_count %}
+                                <span class="badge bg-warning text-dark">{{ pending_approval_count }}</span>
+                                {% endif %}
+                            </a></li>
+                            {% endif %}
                             <li><a class="dropdown-item" href="{{ url_for('change_password') }}">
                                 <i class="bi bi-shield-lock"></i>
                                 {% if current_language == 'ko' %}비밀번호 변경{% else %}Change Password{% endif %}

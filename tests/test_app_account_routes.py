@@ -16,7 +16,8 @@ def client(flask_app, db_session, tmp_path):
 
 @pytest.fixture
 def user(db_session):
-    user = User(email='owner@luda.example', name='소유자', company='LUDA')
+    user = User(email='owner@luda.example', name='소유자', company='LUDA',
+                approval_status='approved')
     user.set_password('Luda-owner-7')
     db_session.session.add(user)
     db_session.session.commit()
@@ -27,6 +28,7 @@ def _register(client, **overrides):
     data = {
         'email': 'new@luda.example', 'name': '신규', 'company': 'LUDA',
         'password': 'Luda-analyze-7', 'password_confirm': 'Luda-analyze-7',
+        'purpose': '매출 데이터를 업로드해 지점별 실적을 분석합니다.',
     }
     data.update(overrides)
     return client.post('/register', data=data)
@@ -177,7 +179,8 @@ def test_change_password_requires_login(client):
 
 
 def test_company_view_excludes_other_email_domains(client, user, db_session):
-    same = User(email='mate@luda.example', name='동료', company='LUDA')
+    same = User(email='mate@luda.example', name='동료', company='LUDA',
+                approval_status='approved')
     same.set_password('Luda-mate-7')
     outsider = User(email='spy@other.example', name='외부인', company='LUDA')
     outsider.set_password('Luda-spy-7')
@@ -194,7 +197,8 @@ def test_company_view_excludes_other_email_domains(client, user, db_session):
 
 
 def test_company_view_blocked_for_public_webmail_accounts(client, db_session):
-    webmail = User(email='someone@gmail.com', name='웹메일', company='LUDA')
+    webmail = User(email='someone@gmail.com', name='웹메일', company='LUDA',
+                   approval_status='approved')
     webmail.set_password('Luda-webmail-7')
     peer = User(email='mate@luda.example', name='동료', company='LUDA')
     peer.set_password('Luda-mate-7')

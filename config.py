@@ -4,7 +4,7 @@ from datetime import timedelta
 
 from dotenv import load_dotenv
 
-from src.account_security import parse_domain_list
+from src.account_security import parse_domain_list, parse_email_list
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -100,6 +100,10 @@ class Config:
     # 로그인 실패 임계치와 잠금 시간 (0 이면 잠금 비활성화)
     LOGIN_MAX_FAILED_ATTEMPTS = _env_int('LOGIN_MAX_FAILED_ATTEMPTS', 10)
     LOGIN_LOCKOUT_MINUTES = _env_int('LOGIN_LOCKOUT_MINUTES', 15)
+    # 가입 후 관리자 승인 필요 여부 (false 면 가입 즉시 로그인 가능)
+    REQUIRE_ADMIN_APPROVAL = _env_flag('REQUIRE_ADMIN_APPROVAL', True)
+    # 관리자 계정 이메일 목록. 예: ADMIN_EMAILS=admin@ludaresearch.org,ops@ludaresearch.org
+    ADMIN_EMAILS = parse_email_list(os.environ.get('ADMIN_EMAILS'))
 
     # 언어 설정
     LANGUAGES = ['ko', 'en']
