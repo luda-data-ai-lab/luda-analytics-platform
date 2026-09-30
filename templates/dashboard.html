@@ -106,7 +106,7 @@
                             </div>
                             
                             <!-- 제목 -->
-                            <h5 class="card-title mb-2">{{ dataset.name }}</h5>
+                            <h5 class="card-title mb-2">{{ dataset.name | ds_name }}</h5>
                             {% if view == 'company' %}
                             <p class="text-muted small mb-1">
                                 <i class="bi bi-person-circle"></i> {{ dataset.user.name }}

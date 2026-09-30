@@ -5,7 +5,7 @@
 사용자에게 노출되는 문구에는 예외 상세를 포함하지 않는다 (서버 로그 전용).
 """
 
-from flask import flash, session
+from flask import flash, has_request_context, session
 
 # 여러 라우트에서 반복되는 문구 (한글, 영문)
 MESSAGES = {
@@ -25,7 +25,9 @@ MESSAGES = {
 
 
 def get_message(ko_msg, en_msg):
-    """현재 세션 언어에 맞는 문구를 반환한다 (기본값은 영문)."""
+    """현재 세션 언어에 맞는 문구를 반환한다 (요청 밖/기본값은 영문)."""
+    if not has_request_context():
+        return en_msg
     return ko_msg if session.get('language') == 'ko' else en_msg
 
 

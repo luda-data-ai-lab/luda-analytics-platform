@@ -1103,26 +1103,32 @@ def _charts_sales(df, charts, layout):
             monthly = group_sum(df, '_month', [col_revenue, col_cost])
             fig = grouped_bar(
                 monthly['_month'].tolist(),
-                [('매출', monthly[col_revenue].tolist(), '#0d6efd'),
-                 ('비용', monthly[col_cost].tolist(), '#dc3545')],
-                title='월별 매출 vs 비용', layout=layout, xaxis_title='월'
+                [(get_message('매출', 'Revenue'), monthly[col_revenue].tolist(), '#0d6efd'),
+                 (get_message('비용', 'Cost'), monthly[col_cost].tolist(), '#dc3545')],
+                title=get_message('월별 매출 vs 비용', 'Monthly Revenue vs Cost'),
+                layout=layout, xaxis_title=get_message('월', 'Month')
             )
         else:
             monthly = group_sum(df, '_month', col_revenue)
-            fig = line_trend(monthly, '_month', col_revenue, '월별 매출 추이',
+            fig = line_trend(monthly, '_month', col_revenue,
+                             get_message('월별 매출 추이', 'Monthly Revenue Trend'),
                              layout=layout, color='#0d6efd')
         charts['daily_sales'] = fig.to_json()
 
     # 2. 지역별 매출 (수평 바, 내림차순)
     if col_region and col_revenue:
         data = group_sum(df, col_region, col_revenue, sort_by=col_revenue)
-        fig = horizontal_bar(data, col_revenue, col_region, '지역별 매출 (내림차순)', layout=layout)
+        fig = horizontal_bar(data, col_revenue, col_region,
+                             get_message('지역별 매출 (내림차순)', 'Revenue by Region (desc)'),
+                             layout=layout)
         charts['region_sales'] = fig.to_json()
 
     # 3. 제품별 판매 비율 (도넛 차트)
     if col_product and col_revenue:
         data = group_sum(df, col_product, col_revenue, sort_by=col_revenue, ascending=False)
-        fig = pie_chart(data, col_product, col_revenue, '제품별 매출 비중', layout=layout)
+        fig = pie_chart(data, col_product, col_revenue,
+                        get_message('제품별 매출 비중', 'Revenue Share by Product'),
+                        layout=layout)
         charts['product_distribution'] = fig.to_json()
 
     # 4. 카테고리별 매출 + 판매량 (이중축 바)
@@ -1130,7 +1136,8 @@ def _charts_sales(df, charts, layout):
         value_cols = [col_revenue, col_quantity] if col_quantity else [col_revenue]
         data = group_sum(df, col_category, value_cols, sort_by=col_revenue, ascending=False)
         fig = px.bar(data, x=col_category, y=col_revenue,
-                     title='카테고리별 매출', color=col_category,
+                     title=get_message('카테고리별 매출', 'Revenue by Category'),
+                     color=col_category,
                      text_auto='.2s')
         fig.update_layout(**layout)
         charts['category_sales'] = fig.to_json()
@@ -1139,22 +1146,26 @@ def _charts_sales(df, charts, layout):
     if col_quantity and col_revenue:
         color_arg = col_product if col_product else col_category
         fig = go_scatter(df, col_quantity, col_revenue, color_col=color_arg,
-                         title='판매량 vs 매출액',
-                         x_label='판매량', y_label='매출액', layout=layout)
+                         title=get_message('판매량 vs 매출액', 'Quantity vs Revenue'),
+                         x_label=get_message('판매량', 'Quantity'),
+                         y_label=get_message('매출액', 'Revenue'), layout=layout)
         charts['quantity_revenue'] = fig.to_json()
 
     # 6. 제품별 이익률 (수평 바)
     if col_product and col_revenue and col_cost:
         data = group_sum(df, col_product, [col_revenue, col_cost])
-        data = add_ratio_column(data, '이익률(%)', col_revenue, col_cost, mode='margin')
-        data = data.sort_values('이익률(%)')
-        fig = horizontal_bar(data, '이익률(%)', col_product, '제품별 이익률(%)',
+        margin_col = get_message('이익률(%)', 'Margin(%)')
+        data = add_ratio_column(data, margin_col, col_revenue, col_cost, mode='margin')
+        data = data.sort_values(margin_col)
+        fig = horizontal_bar(data, margin_col, col_product,
+                             get_message('제품별 이익률(%)', 'Profit Margin by Product (%)'),
                              layout=layout, color_scale='RdYlGn')
         charts['daily_quantity'] = fig.to_json()
     elif col_date and col_quantity:
         group_col = '_month' if '_month' in df.columns else col_date
         daily = group_sum(df, group_col, col_quantity)
-        fig = line_trend(daily, group_col, col_quantity, '월별 판매량 추이',
+        fig = line_trend(daily, group_col, col_quantity,
+                         get_message('월별 판매량 추이', 'Monthly Quantity Trend'),
                          layout=layout, color='#198754')
         charts['daily_quantity'] = fig.to_json()
 
@@ -1165,8 +1176,10 @@ def _charts_crop(df, charts, layout):
 
     # 1. 작물별 수확량 분포 (go.Box — px.box color 버그 우회)
     if col_crop and col_yield:
-        fig = distribution_by_group(df, col_crop, col_yield, '작물 유형별 수확량 분포',
-                                    layout=layout, yaxis_title='수확량 (kg)')
+        fig = distribution_by_group(df, col_crop, col_yield,
+                                    get_message('작물 유형별 수확량 분포', 'Yield Distribution by Crop'),
+                                    layout=layout,
+                                    yaxis_title=get_message('수확량 (kg)', 'Yield (kg)'))
         charts['daily_sales'] = fig.to_json()
 
     # 2. 기후 × 토양 조합별 평균 수확량 (히트맵)
@@ -1180,40 +1193,53 @@ def _charts_crop(df, charts, layout):
             colorscale='YlGn',
             text=[[f'{v:.0f}' for v in row] for row in pivot_table.values],
             texttemplate='%{text}',
-            hovertemplate='기후: %{y}<br>토양: %{x}<br>수확량: %{z:.0f}kg<extra></extra>'
+            hovertemplate=get_message(
+                '기후: %{y}<br>토양: %{x}<br>수확량: %{z:.0f}kg<extra></extra>',
+                'Climate: %{y}<br>Soil: %{x}<br>Yield: %{z:.0f}kg<extra></extra>',
+            )
         ))
-        fig.update_layout(title='기후 × 토양 조합별 평균 수확량', **layout)
+        fig.update_layout(title=get_message('기후 × 토양 조합별 평균 수확량',
+                                            'Average Yield by Climate × Soil'), **layout)
         charts['region_sales'] = fig.to_json()
     elif col_climate and col_yield:
-        fig = distribution_by_group(df, col_climate, col_yield, '기후별 수확량 분포',
-                                    layout=layout, yaxis_title='수확량 (kg)')
+        fig = distribution_by_group(df, col_climate, col_yield,
+                                    get_message('기후별 수확량 분포', 'Yield Distribution by Climate'),
+                                    layout=layout,
+                                    yaxis_title=get_message('수확량 (kg)', 'Yield (kg)'))
         charts['region_sales'] = fig.to_json()
 
     # 3. 작물별 데이터 구성 비율 (도넛)
     if col_crop:
         counts = value_counts_frame(df, col_crop)
-        fig = pie_chart(counts, col_crop, 'count', '작물 유형 구성 비율', layout=layout)
+        fig = pie_chart(counts, col_crop, 'count',
+                        get_message('작물 유형 구성 비율', 'Crop Type Composition'),
+                        layout=layout)
         charts['product_distribution'] = fig.to_json()
 
     # 4. 토양 유형별 수확량 분포 (go.Violin — px.violin color 버그 우회)
     if col_soil and col_yield:
-        fig = distribution_by_group(df, col_soil, col_yield, '토양 유형별 수확량 분포',
-                                    layout=layout, kind='violin', yaxis_title='수확량 (kg)')
+        fig = distribution_by_group(df, col_soil, col_yield,
+                                    get_message('토양 유형별 수확량 분포', 'Yield Distribution by Soil'),
+                                    layout=layout, kind='violin',
+                                    yaxis_title=get_message('수확량 (kg)', 'Yield (kg)'))
         charts['category_sales'] = fig.to_json()
 
     # 5. 강수량 vs 수확량 (작물별 색상, 비료량 = 마커 크기)
     if col_rain and col_yield:
         fig = go_scatter(df, col_rain, col_yield, color_col=col_crop,
                          size_col=col_fert, size_max=18,
-                         title='강수량 vs 수확량 (마커 크기 = 비료량)',
-                         x_label='강수량 (mm)', y_label='수확량 (kg)', layout=layout)
+                         title=get_message('강수량 vs 수확량 (마커 크기 = 비료량)',
+                                           'Rainfall vs Yield (marker size = fertilizer)'),
+                         x_label=get_message('강수량 (mm)', 'Rainfall (mm)'),
+                         y_label=get_message('수확량 (kg)', 'Yield (kg)'), layout=layout)
         charts['quantity_revenue'] = fig.to_json()
 
     # 6. 온도 vs 수확량 (작물별 색상)
     if col_temp and col_yield:
         fig = go_scatter(df, col_temp, col_yield, color_col=col_crop,
-                         title='기온 vs 수확량',
-                         x_label='기온 (°C)', y_label='수확량 (kg)', layout=layout)
+                         title=get_message('기온 vs 수확량', 'Temperature vs Yield'),
+                         x_label=get_message('기온 (°C)', 'Temperature (°C)'),
+                         y_label=get_message('수확량 (kg)', 'Yield (kg)'), layout=layout)
         fig.update_layout(**layout)
         fig.update_traces(marker=dict(size=9, opacity=0.7))
         charts['daily_quantity'] = fig.to_json()
@@ -1231,14 +1257,16 @@ def _charts_marketing(df, charts, layout):
         monthly = group_sum(df, '_month', [col_revenue, col_budget])
         fig = grouped_bar(
             monthly['_month'].tolist(),
-            [('매출', monthly[col_revenue].tolist(), '#0d6efd'),
-             ('예산', monthly[col_budget].tolist(), '#adb5bd')],
-            title='월별 매출 vs 예산', layout=layout, xaxis_title='월'
+            [(get_message('매출', 'Revenue'), monthly[col_revenue].tolist(), '#0d6efd'),
+             (get_message('예산', 'Budget'), monthly[col_budget].tolist(), '#adb5bd')],
+            title=get_message('월별 매출 vs 예산', 'Monthly Revenue vs Budget'),
+            layout=layout, xaxis_title=get_message('월', 'Month')
         )
         charts['daily_sales'] = fig.to_json()
     elif '_month' in df.columns and col_revenue:
         monthly = group_sum(df, '_month', col_revenue)
-        fig = line_trend(monthly, '_month', col_revenue, '월별 매출 추이', layout=layout)
+        fig = line_trend(monthly, '_month', col_revenue,
+                         get_message('월별 매출 추이', 'Monthly Revenue Trend'), layout=layout)
         charts['daily_sales'] = fig.to_json()
 
     # 2. 채널별 ROI (수평 바 — ROI% = (매출-예산)/예산*100)
@@ -1246,33 +1274,39 @@ def _charts_marketing(df, charts, layout):
         agg = group_sum(df, col_channel, [col_revenue, col_budget])
         agg = add_ratio_column(agg, 'ROI(%)', col_revenue, col_budget, mode='gain')
         agg = agg.sort_values('ROI(%)')
-        fig = horizontal_bar(agg, 'ROI(%)', col_channel, '채널별 ROI (%)',
+        fig = horizontal_bar(agg, 'ROI(%)', col_channel,
+                             get_message('채널별 ROI (%)', 'ROI by Channel (%)'),
                              layout=layout, color_scale='RdYlGn',
                              text='ROI(%)', texttemplate='%{text:.1f}%')
         charts['region_sales'] = fig.to_json()
     elif col_channel and col_revenue:
         data = group_sum(df, col_channel, col_revenue, sort_by=col_revenue)
-        fig = horizontal_bar(data, col_revenue, col_channel, '채널별 총 매출', layout=layout)
+        fig = horizontal_bar(data, col_revenue, col_channel,
+                             get_message('채널별 총 매출', 'Total Revenue by Channel'), layout=layout)
         charts['region_sales'] = fig.to_json()
 
     # 3. 채널별 캠페인 예산 비중 (도넛)
     if col_channel and col_budget:
         data = group_sum(df, col_channel, col_budget)
-        fig = pie_chart(data, col_channel, col_budget, '채널별 예산 배분', layout=layout)
+        fig = pie_chart(data, col_channel, col_budget,
+                        get_message('채널별 예산 배분', 'Budget Allocation by Channel'), layout=layout)
         charts['product_distribution'] = fig.to_json()
 
     # 4. 채널별 전환율 (전환/클릭 × 100, 수평 바)
     if col_channel and col_conv and col_clicks:
         agg = group_sum(df, col_channel, [col_conv, col_clicks])
-        agg = add_ratio_column(agg, '전환율(%)', col_conv, col_clicks, digits=2)
-        agg = agg.sort_values('전환율(%)')
-        fig = horizontal_bar(agg, '전환율(%)', col_channel, '채널별 전환율 (%)',
+        cvr_col = get_message('전환율(%)', 'CVR(%)')
+        agg = add_ratio_column(agg, cvr_col, col_conv, col_clicks, digits=2)
+        agg = agg.sort_values(cvr_col)
+        fig = horizontal_bar(agg, cvr_col, col_channel,
+                             get_message('채널별 전환율 (%)', 'Conversion Rate by Channel (%)'),
                              layout=layout, color_scale='Teal',
-                             text='전환율(%)', texttemplate='%{text:.2f}%')
+                             text=cvr_col, texttemplate='%{text:.2f}%')
         charts['category_sales'] = fig.to_json()
     elif col_channel and col_conv:
         data = group_sum(df, col_channel, col_conv, sort_by=col_conv)
-        fig = horizontal_bar(data, col_conv, col_channel, '채널별 총 전환수',
+        fig = horizontal_bar(data, col_conv, col_channel,
+                             get_message('채널별 총 전환수', 'Total Conversions by Channel'),
                              layout=layout, color_scale='Teal')
         charts['category_sales'] = fig.to_json()
 
@@ -1280,8 +1314,10 @@ def _charts_marketing(df, charts, layout):
     if col_budget and col_revenue:
         fig = go_scatter(df, col_budget, col_revenue, color_col=col_channel,
                          size_col=col_impr, size_max=25,
-                         title='예산 vs 매출 (버블 크기 = 노출수)',
-                         x_label='예산', y_label='매출액', layout=layout)
+                         title=get_message('예산 vs 매출 (버블 크기 = 노출수)',
+                                           'Budget vs Revenue (bubble size = impressions)'),
+                         x_label=get_message('예산', 'Budget'),
+                         y_label=get_message('매출액', 'Revenue'), layout=layout)
         charts['quantity_revenue'] = fig.to_json()
 
     # 6. 마케팅 퍼널 (노출 → 클릭 → 전환, 채널별 집계)
@@ -1291,16 +1327,19 @@ def _charts_marketing(df, charts, layout):
         for i, row in agg.iterrows():
             fig.add_trace(go.Funnel(
                 name=row[col_channel],
-                y=['노출', '클릭', '전환'],
+                y=[get_message('노출', 'Impressions'), get_message('클릭', 'Clicks'),
+                   get_message('전환', 'Conversions')],
                 x=[row[col_impr], row[col_clicks], row[col_conv]],
                 marker=dict(color=QUALITATIVE_COLORS[i % len(QUALITATIVE_COLORS)])
             ))
-        fig.update_layout(title='채널별 마케팅 퍼널', **layout)
+        fig.update_layout(title=get_message('채널별 마케팅 퍼널', 'Marketing Funnel by Channel'),
+                          **layout)
         charts['daily_quantity'] = fig.to_json()
     elif col_clicks and col_conv:
         fig = go_scatter(df, col_clicks, col_conv, color_col=col_channel,
-                         title='클릭수 vs 전환수',
-                         x_label='클릭수', y_label='전환수', layout=layout)
+                         title=get_message('클릭수 vs 전환수', 'Clicks vs Conversions'),
+                         x_label=get_message('클릭수', 'Clicks'),
+                         y_label=get_message('전환수', 'Conversions'), layout=layout)
         charts['daily_quantity'] = fig.to_json()
 
 
@@ -1312,37 +1351,44 @@ def _charts_customer(df, charts, layout):
     # 1. 연령 × 세그먼트 분포 (go.Histogram으로 직접 — px.histogram color 버그 우회)
     if col_age:
         group_col = col_seg if col_seg else col_gender
-        title = '고객 연령대 분포 (세그먼트별)' if group_col else '고객 연령 분포'
+        title = (get_message('고객 연령대 분포 (세그먼트별)', 'Customer Age Distribution (by segment)')
+                 if group_col else get_message('고객 연령 분포', 'Customer Age Distribution'))
         fig = histogram_by_group(df, col_age, group_col, title,
-                                 layout=layout, xaxis_title='나이')
+                                 layout=layout, xaxis_title=get_message('나이', 'Age'))
         charts['daily_sales'] = fig.to_json()
 
     # 2. 세그먼트별 총 구매금액 (수평 바, 내림차순)
     if col_seg and col_value:
         data = group_sum(df, col_seg, col_value, sort_by=col_value)
-        fig = horizontal_bar(data, col_value, col_seg, '세그먼트별 총 구매금액',
+        fig = horizontal_bar(data, col_value, col_seg,
+                             get_message('세그먼트별 총 구매금액', 'Total Spend by Segment'),
                              layout=layout, text_auto='.2s')
         charts['region_sales'] = fig.to_json()
     elif col_seg:
         counts = value_counts_frame(df, col_seg)
-        fig = simple_bar(counts, col_seg, 'count', '세그먼트별 고객 수', layout=layout)
+        fig = simple_bar(counts, col_seg, 'count',
+                         get_message('세그먼트별 고객 수', 'Customers by Segment'), layout=layout)
         charts['region_sales'] = fig.to_json()
 
     # 3. 성별 구매금액 비중 (도넛)
     if col_gender and col_value:
         data = group_sum(df, col_gender, col_value)
-        fig = pie_chart(data, col_gender, col_value, '성별 구매금액 비중', layout=layout,
+        fig = pie_chart(data, col_gender, col_value,
+                        get_message('성별 구매금액 비중', 'Spend Share by Gender'), layout=layout,
                         color_sequence=px.colors.qualitative.Pastel)
         charts['product_distribution'] = fig.to_json()
     elif col_gender:
         counts = value_counts_frame(df, col_gender)
-        fig = pie_chart(counts, col_gender, 'count', '성별 비율', layout=layout)
+        fig = pie_chart(counts, col_gender, 'count',
+                        get_message('성별 비율', 'Gender Ratio'), layout=layout)
         charts['product_distribution'] = fig.to_json()
 
     # 4. 세그먼트별 구매금액 분포 (go.Box — px.box color 버그 우회)
     if col_seg and col_value:
-        fig = distribution_by_group(df, col_seg, col_value, '세그먼트별 구매금액 분포',
-                                    layout=layout, yaxis_title='평균 구매금액')
+        fig = distribution_by_group(df, col_seg, col_value,
+                                    get_message('세그먼트별 구매금액 분포', 'Spend Distribution by Segment'),
+                                    layout=layout,
+                                    yaxis_title=get_message('평균 구매금액', 'Average Spend'))
         charts['category_sales'] = fig.to_json()
 
     # 5. 소득 vs 구매금액 (세그먼트 색상, 구매횟수 = 마커 크기)
@@ -1350,21 +1396,26 @@ def _charts_customer(df, charts, layout):
         color_arg = col_seg if col_seg else col_gender
         fig = go_scatter(df, col_income, col_value, color_col=color_arg,
                          size_col=col_purch, size_max=18,
-                         title='소득 vs 구매금액 (마커 크기 = 구매횟수)',
-                         x_label='소득', y_label='평균 구매금액', layout=layout)
+                         title=get_message('소득 vs 구매금액 (마커 크기 = 구매횟수)',
+                                           'Income vs Spend (marker size = purchase count)'),
+                         x_label=get_message('소득', 'Income'),
+                         y_label=get_message('평균 구매금액', 'Average Spend'), layout=layout)
         charts['quantity_revenue'] = fig.to_json()
 
     # 6. 구매 주기 분포 (go.Histogram — px 버그 우회)
     if col_recency:
         fig = histogram_by_group(df, col_recency, col_seg,
-                                 '마지막 구매 후 경과일 분포 (구매 주기)',
-                                 layout=layout, nbins=20, xaxis_title='경과일 (일)')
+                                 get_message('마지막 구매 후 경과일 분포 (구매 주기)',
+                                             'Days Since Last Purchase (purchase cycle)'),
+                                 layout=layout, nbins=20,
+                                 xaxis_title=get_message('경과일 (일)', 'Days elapsed'))
         charts['daily_quantity'] = fig.to_json()
     elif col_age and col_purch:
         fig = go_scatter(df, col_age, col_purch,
                          color_col=col_seg if col_seg else None,
-                         title='연령 vs 총 구매횟수',
-                         x_label='나이', y_label='총 구매횟수', layout=layout)
+                         title=get_message('연령 vs 총 구매횟수', 'Age vs Total Purchases'),
+                         x_label=get_message('나이', 'Age'),
+                         y_label=get_message('총 구매횟수', 'Total Purchases'), layout=layout)
         charts['daily_quantity'] = fig.to_json()
 
 
@@ -1376,7 +1427,9 @@ def _charts_generic(df, charts, layout):
     if cat_cols and num_cols:
         data = group_sum(df, cat_cols[0], num_cols[0],
                          sort_by=num_cols[0], ascending=False).head(15)
-        fig = px.bar(data, x=cat_cols[0], y=num_cols[0], title=f'{cat_cols[0]}별 {num_cols[0]}')
+        fig = px.bar(data, x=cat_cols[0], y=num_cols[0],
+                     title=get_message(f'{cat_cols[0]}별 {num_cols[0]}',
+                                       f'{num_cols[0]} by {cat_cols[0]}'))
         fig.update_layout(**layout)
         charts['region_sales'] = fig.to_json()
 
@@ -1387,7 +1440,8 @@ def _charts_generic(df, charts, layout):
 
     if cat_cols:
         counts = value_counts_frame(df, cat_cols[0], top=10)
-        fig = pie_chart(counts, cat_cols[0], 'count', f'{cat_cols[0]} 분포',
+        fig = pie_chart(counts, cat_cols[0], 'count',
+                        get_message(f'{cat_cols[0]} 분포', f'{cat_cols[0]} distribution'),
                         layout=layout, hole=None)
         charts['product_distribution'] = fig.to_json()
 
@@ -1486,40 +1540,56 @@ def _insights_sales(df):
         best_month = monthly.idxmax()
         worst_month = monthly.idxmin()
         growth = gain_pct(monthly.iloc[-1], monthly.iloc[0]) if len(monthly) > 1 else 0
-        ins['daily_sales'] = (
+        ins['daily_sales'] = get_message(
             f"📈 최고 매출 월은 <strong>{best_month}</strong> "
             f"({int(monthly.max()):,}원), 최저는 <strong>{worst_month}</strong> ({int(monthly.min()):,}원)입니다. "
-            f"전체 기간 동안 매출은 약 <strong>{growth:+.1f}%</strong> 변화했습니다."
+            f"전체 기간 동안 매출은 약 <strong>{growth:+.1f}%</strong> 변화했습니다.",
+            f"📈 Best month: <strong>{best_month}</strong> ({int(monthly.max()):,}), "
+            f"worst: <strong>{worst_month}</strong> ({int(monthly.min()):,}). "
+            f"Revenue changed by about <strong>{growth:+.1f}%</strong> over the period.",
         )
 
     if col_region and col_revenue:
         top, top_pct, by_region = top_share(df, col_region, col_revenue)
-        ins['region_sales'] = (
+        ins['region_sales'] = get_message(
             f"🏆 <strong>{top}</strong> 지역이 전체 매출의 <strong>{top_pct:.1f}%</strong>를 차지하며 1위입니다. "
-            f"하위 지역과의 매출 차이는 {int(by_region.iloc[0] - by_region.iloc[-1]):,}원입니다."
+            f"하위 지역과의 매출 차이는 {int(by_region.iloc[0] - by_region.iloc[-1]):,}원입니다.",
+            f"🏆 <strong>{top}</strong> leads with <strong>{top_pct:.1f}%</strong> of total revenue. "
+            f"Gap to the lowest region: {int(by_region.iloc[0] - by_region.iloc[-1]):,}.",
         )
 
     if col_product and col_revenue:
         top, top_pct, by_prod = top_share(df, col_product, col_revenue)
-        ins['product_distribution'] = (
+        ins['product_distribution'] = get_message(
             f"🥇 <strong>{top}</strong> 제품이 전체 매출의 <strong>{top_pct:.1f}%</strong>를 차지하는 핵심 제품입니다. "
-            f"상위 2개 제품이 전체의 {ratio_pct(by_prod.iloc[:2].sum(), by_prod.sum()):.1f}%를 차지합니다."
+            f"상위 2개 제품이 전체의 {ratio_pct(by_prod.iloc[:2].sum(), by_prod.sum()):.1f}%를 차지합니다.",
+            f"🥇 <strong>{top}</strong> is the core product with <strong>{top_pct:.1f}%</strong> of revenue. "
+            f"The top 2 products make up {ratio_pct(by_prod.iloc[:2].sum(), by_prod.sum()):.1f}% of the total.",
         )
 
     if col_category and col_revenue:
         by_cat = group_agg(df, col_category, col_revenue)
         top = by_cat.index[0]
-        ins['category_sales'] = (
+        spread_ko = ('편차가 크므로 집중 육성 카테고리를 검토하세요.'
+                     if by_cat.std() > by_cat.mean() * 0.3 else '카테고리별 매출이 비교적 균등합니다.')
+        spread_en = ('the spread is large, so consider focusing on a few categories.'
+                     if by_cat.std() > by_cat.mean() * 0.3 else 'revenue is fairly even across categories.')
+        ins['category_sales'] = get_message(
             f"📦 <strong>{top}</strong> 카테고리가 가장 높은 매출을 기록했습니다. "
-            f"카테고리 간 매출 편차는 {int(by_cat.std()):,}원으로, "
-            f"{'편차가 크므로 집중 육성 카테고리를 검토하세요.' if by_cat.std() > by_cat.mean() * 0.3 else '카테고리별 매출이 비교적 균등합니다.'}"
+            f"카테고리 간 매출 편차는 {int(by_cat.std()):,}원으로, {spread_ko}",
+            f"📦 <strong>{top}</strong> is the top-selling category. "
+            f"Revenue spread across categories is {int(by_cat.std()):,}: {spread_en}",
         )
 
     if col_quantity and col_revenue:
         corr = correlation(df, col_quantity, col_revenue)
-        ins['quantity_revenue'] = (
+        ins['quantity_revenue'] = get_message(
             f"📊 판매량과 매출액의 상관계수는 <strong>{corr:.2f}</strong>입니다. "
-            f"{'강한 양의 상관관계로, 판매량 증가가 매출 향상으로 이어집니다.' if corr > 0.7 else '판매량 외 단가·할인율 등 다른 요인도 매출에 영향을 미칩니다.'}"
+            + ('강한 양의 상관관계로, 판매량 증가가 매출 향상으로 이어집니다.' if corr > 0.7
+               else '판매량 외 단가·할인율 등 다른 요인도 매출에 영향을 미칩니다.'),
+            f"📊 Correlation between quantity and revenue is <strong>{corr:.2f}</strong>. "
+            + ('A strong positive relationship — selling more directly lifts revenue.' if corr > 0.7
+               else 'Other factors such as unit price and discounts also drive revenue.'),
         )
 
     if col_product and col_revenue and col_cost:
@@ -1527,10 +1597,13 @@ def _insights_sales(df):
         df2 = add_ratio_column(df2, 'margin', col_revenue, col_cost, mode='margin', digits=10)
         best = df2['margin'].idxmax()
         worst = df2['margin'].idxmin()
-        ins['daily_quantity'] = (
+        ins['daily_quantity'] = get_message(
             f"💰 이익률이 가장 높은 제품은 <strong>{best}</strong> ({df2.loc[best, 'margin']:.1f}%), "
             f"가장 낮은 제품은 <strong>{worst}</strong> ({df2.loc[worst, 'margin']:.1f}%)입니다. "
-            f"저마진 제품의 원가 절감 또는 가격 재조정을 검토하세요."
+            f"저마진 제품의 원가 절감 또는 가격 재조정을 검토하세요.",
+            f"💰 Highest margin: <strong>{best}</strong> ({df2.loc[best, 'margin']:.1f}%), "
+            f"lowest: <strong>{worst}</strong> ({df2.loc[worst, 'margin']:.1f}%). "
+            f"Consider cost reduction or repricing for low-margin products.",
         )
     return ins
 
@@ -1544,53 +1617,72 @@ def _insights_crop(df):
         by_crop = group_agg(df, col_crop, col_yield, how='mean')
         top = by_crop.index[0]
         low = by_crop.index[-1]
-        ins['daily_sales'] = (
+        ins['daily_sales'] = get_message(
             f"🌾 <strong>{top}</strong>이 평균 {int(by_crop.iloc[0]):,}kg으로 가장 높은 수확량을 보입니다. "
             f"<strong>{low}</strong>와의 차이는 {int(by_crop.iloc[0] - by_crop.iloc[-1]):,}kg이며, "
-            f"박스플롯의 수염 길이가 클수록 수확량 변동성이 높습니다."
+            f"박스플롯의 수염 길이가 클수록 수확량 변동성이 높습니다.",
+            f"🌾 <strong>{top}</strong> has the highest average yield at {int(by_crop.iloc[0]):,}kg, "
+            f"{int(by_crop.iloc[0] - by_crop.iloc[-1]):,}kg above <strong>{low}</strong>. "
+            f"Longer box-plot whiskers mean more variable yields.",
         )
 
     if col_climate and col_soil and col_yield:
         pivot = df.groupby([col_climate, col_soil])[col_yield].mean()
         best_idx = pivot.idxmax()
-        ins['region_sales'] = (
+        ins['region_sales'] = get_message(
             f"🌍 기후 <strong>{best_idx[0]}</strong> × 토양 <strong>{best_idx[1]}</strong> 조합에서 "
             f"평균 수확량이 {int(pivot.max()):,}kg으로 가장 높습니다. "
-            f"히트맵에서 진한 녹색 조합이 최적 재배 조건입니다."
+            f"히트맵에서 진한 녹색 조합이 최적 재배 조건입니다.",
+            f"🌍 Climate <strong>{best_idx[0]}</strong> × soil <strong>{best_idx[1]}</strong> gives the "
+            f"highest average yield at {int(pivot.max()):,}kg. "
+            f"Darker green cells in the heatmap mark the best growing conditions.",
         )
 
     if col_crop:
         counts = df[col_crop].value_counts()
         dominant = counts.index[0]
-        ins['product_distribution'] = (
+        ins['product_distribution'] = get_message(
             f"📋 데이터셋에서 <strong>{dominant}</strong>이 전체의 {ratio_pct(counts.iloc[0], len(df)):.1f}%를 차지합니다. "
-            f"균형 잡힌 비교 분석을 위해 각 작물별 데이터 수가 균등한지 확인하세요."
+            f"균형 잡힌 비교 분석을 위해 각 작물별 데이터 수가 균등한지 확인하세요.",
+            f"📋 <strong>{dominant}</strong> accounts for {ratio_pct(counts.iloc[0], len(df)):.1f}% of the rows. "
+            f"Check that each crop has a comparable sample size before comparing them.",
         )
 
     if col_soil and col_yield:
         by_soil = group_agg(df, col_soil, col_yield, how='median')
         top = by_soil.index[0]
-        ins['category_sales'] = (
+        ins['category_sales'] = get_message(
             f"🌱 <strong>{top}</strong> 토양이 중앙값 기준으로 수확량이 가장 높습니다. "
             f"바이올린 플롯의 폭이 넓을수록 해당 토양에서의 수확량 편차가 크며, "
-            f"재배 환경 관리의 일관성을 높일 필요가 있습니다."
+            f"재배 환경 관리의 일관성을 높일 필요가 있습니다.",
+            f"🌱 <strong>{top}</strong> soil has the highest median yield. "
+            f"Wider violins mean more variable yields on that soil, "
+            f"so growing conditions there need more consistent management.",
         )
 
     if col_rain and col_yield:
         corr = correlation(df, col_rain, col_yield)
-        ins['quantity_revenue'] = (
+        ins['quantity_revenue'] = get_message(
             f"💧 강수량과 수확량의 상관계수: <strong>{corr:.2f}</strong>. "
-            f"{'강수량이 수확량에 큰 영향을 미치므로 관개 시스템이 중요합니다.' if corr > 0.5 else '강수량 외 다른 요인(비료, 온도 등)도 수확량에 복합적으로 작용합니다.'} "
-            f"마커 크기(비료량)가 클수록 수확량 향상 효과를 확인하세요."
+            + ('강수량이 수확량에 큰 영향을 미치므로 관개 시스템이 중요합니다.' if corr > 0.5
+               else '강수량 외 다른 요인(비료, 온도 등)도 수확량에 복합적으로 작용합니다.')
+            + " 마커 크기(비료량)가 클수록 수확량 향상 효과를 확인하세요.",
+            f"💧 Correlation between rainfall and yield: <strong>{corr:.2f}</strong>. "
+            + ('Rainfall strongly drives yield, so irrigation matters.' if corr > 0.5
+               else 'Other factors (fertilizer, temperature) also shape yield.')
+            + " Compare larger markers (more fertilizer) to see their effect on yield.",
         )
 
     if col_temp and col_yield:
         corr = correlation(df, col_temp, col_yield)
         opt_temp = df.groupby(pd.cut(df[col_temp], bins=5))[col_yield].mean().idxmax()
-        ins['daily_quantity'] = (
+        ins['daily_quantity'] = get_message(
             f"🌡️ 기온과 수확량의 상관계수: <strong>{corr:.2f}</strong>. "
             f"수확량이 가장 높은 온도 구간은 <strong>{opt_temp}</strong>°C입니다. "
-            f"작물별로 최적 온도 범위가 다르므로 색상별 군집을 확인하세요."
+            f"작물별로 최적 온도 범위가 다르므로 색상별 군집을 확인하세요.",
+            f"🌡️ Correlation between temperature and yield: <strong>{corr:.2f}</strong>. "
+            f"Yield peaks in the <strong>{opt_temp}</strong>°C range. "
+            f"Optimal ranges differ by crop, so compare the colored clusters.",
         )
     return ins
 
@@ -1611,10 +1703,13 @@ def _insights_marketing(df):
             month_col = add_month_column(df2, col_date)
             monthly_rev = df2.groupby(month_col)[col_revenue].sum()
             best_m = monthly_rev.idxmax()
-            ins['daily_sales'] = (
+            ins['daily_sales'] = get_message(
                 f"📅 전체 평균 ROI는 <strong>{total_roi:.1f}%</strong>입니다. "
                 f"<strong>{best_m}</strong>에 최대 매출 {int(monthly_rev.max()):,}원을 기록했습니다. "
-                f"예산 대비 매출 막대가 큰 달의 캠페인 전략을 분석하세요."
+                f"예산 대비 매출 막대가 큰 달의 캠페인 전략을 분석하세요.",
+                f"📅 Overall ROI is <strong>{total_roi:.1f}%</strong>. "
+                f"Peak revenue of {int(monthly_rev.max()):,} was recorded in <strong>{best_m}</strong>. "
+                f"Review the campaigns of months where revenue far exceeds budget.",
             )
 
     if col_channel and col_revenue and col_budget:
@@ -1622,19 +1717,28 @@ def _insights_marketing(df):
         agg = add_ratio_column(agg, 'roi', col_revenue, col_budget, mode='gain', digits=10)
         best_ch = agg['roi'].idxmax()
         worst_ch = agg['roi'].idxmin()
-        ins['region_sales'] = (
+        ins['region_sales'] = get_message(
             f"🎯 ROI 최고 채널: <strong>{best_ch}</strong> ({agg.loc[best_ch, 'roi']:.1f}%), "
             f"최저: <strong>{worst_ch}</strong> ({agg.loc[worst_ch, 'roi']:.1f}%). "
-            f"{'음수 ROI 채널은 예산 조정 또는 캠페인 개선이 필요합니다.' if agg['roi'].min() < 0 else '모든 채널이 양의 ROI를 기록 중입니다.'}"
+            + ('음수 ROI 채널은 예산 조정 또는 캠페인 개선이 필요합니다.' if agg['roi'].min() < 0
+               else '모든 채널이 양의 ROI를 기록 중입니다.'),
+            f"🎯 Best ROI channel: <strong>{best_ch}</strong> ({agg.loc[best_ch, 'roi']:.1f}%), "
+            f"worst: <strong>{worst_ch}</strong> ({agg.loc[worst_ch, 'roi']:.1f}%). "
+            + ('Channels with negative ROI need budget or campaign changes.' if agg['roi'].min() < 0
+               else 'Every channel currently shows positive ROI.'),
         )
 
     if col_channel and col_budget:
         by_ch = df.groupby(col_channel)[col_budget].sum()
         top_ch = by_ch.idxmax()
         top_pct = ratio_pct(by_ch.max(), by_ch.sum())
-        ins['product_distribution'] = (
+        ins['product_distribution'] = get_message(
             f"💸 예산의 <strong>{top_pct:.1f}%</strong>가 <strong>{top_ch}</strong> 채널에 집중되어 있습니다. "
-            f"{'채널 다변화를 통해 리스크 분산을 고려하세요.' if top_pct > 40 else '채널별 예산 배분이 비교적 균등합니다.'}"
+            + ('채널 다변화를 통해 리스크 분산을 고려하세요.' if top_pct > 40
+               else '채널별 예산 배분이 비교적 균등합니다.'),
+            f"💸 <strong>{top_pct:.1f}%</strong> of the budget is concentrated in <strong>{top_ch}</strong>. "
+            + ('Consider diversifying channels to spread the risk.' if top_pct > 40
+               else 'Budget is spread fairly evenly across channels.'),
         )
 
     if col_channel and col_conv and col_clicks:
@@ -1642,28 +1746,39 @@ def _insights_marketing(df):
         agg = add_ratio_column(agg, 'cvr', col_conv, col_clicks, digits=10)
         best = agg['cvr'].idxmax()
         avg_cvr = agg['cvr'].mean()
-        ins['category_sales'] = (
+        ins['category_sales'] = get_message(
             f"✅ 전환율 1위 채널: <strong>{best}</strong> ({agg.loc[best, 'cvr']:.2f}%). "
             f"전체 평균 전환율은 {avg_cvr:.2f}%이며, "
-            f"전환율이 낮은 채널은 랜딩 페이지 및 타겟팅 최적화를 검토하세요."
+            f"전환율이 낮은 채널은 랜딩 페이지 및 타겟팅 최적화를 검토하세요.",
+            f"✅ Best conversion rate: <strong>{best}</strong> ({agg.loc[best, 'cvr']:.2f}%). "
+            f"The average is {avg_cvr:.2f}% — for channels below it, "
+            f"review landing pages and targeting.",
         )
 
     if col_budget and col_revenue:
         corr = correlation(df, col_budget, col_revenue, numeric=True)
-        ins['quantity_revenue'] = (
+        ins['quantity_revenue'] = get_message(
             f"💰 예산-매출 상관계수: <strong>{corr:.2f}</strong>. "
-            f"{'예산 투자가 매출로 효율적으로 전환되고 있습니다.' if corr > 0.7 else '예산 증가가 반드시 매출 증가로 이어지지 않습니다. 캠페인 품질을 점검하세요.'} "
-            f"버블 크기(노출수)가 크지만 매출이 낮은 캠페인은 메시지 효과를 재검토하세요."
+            + ('예산 투자가 매출로 효율적으로 전환되고 있습니다.' if corr > 0.7
+               else '예산 증가가 반드시 매출 증가로 이어지지 않습니다. 캠페인 품질을 점검하세요.')
+            + " 버블 크기(노출수)가 크지만 매출이 낮은 캠페인은 메시지 효과를 재검토하세요.",
+            f"💰 Budget-revenue correlation: <strong>{corr:.2f}</strong>. "
+            + ('Budget is converting into revenue efficiently.' if corr > 0.7
+               else 'More budget does not automatically mean more revenue — check campaign quality.')
+            + " Campaigns with big bubbles (impressions) but low revenue need a message review.",
         )
 
     if col_channel and col_impr and col_clicks and col_conv:
         agg = df.groupby(col_channel)[[col_impr, col_clicks, col_conv]].sum()
         agg = add_ratio_column(agg, 'ctr', col_clicks, col_impr, digits=10)
         best_ctr = agg['ctr'].idxmax()
-        ins['daily_quantity'] = (
+        ins['daily_quantity'] = get_message(
             f"📣 퍼널 분석: 클릭률(CTR) 최고 채널은 <strong>{best_ctr}</strong> ({agg.loc[best_ctr, 'ctr']:.2f}%). "
             f"노출 대비 전환이 낮은 채널은 클릭 후 경험(UX, 오퍼) 개선이 필요합니다. "
-            f"퍼널 각 단계의 이탈률을 분석해 병목 구간을 파악하세요."
+            f"퍼널 각 단계의 이탈률을 분석해 병목 구간을 파악하세요.",
+            f"📣 Funnel: best click-through rate is <strong>{best_ctr}</strong> ({agg.loc[best_ctr, 'ctr']:.2f}%). "
+            f"Channels converting poorly relative to impressions need a better post-click experience. "
+            f"Check drop-off at each funnel stage to find the bottleneck.",
         )
     return ins
 
@@ -1677,59 +1792,85 @@ def _insights_customer(df):
     if col_age:
         avg_age = df[col_age].mean()
         mode_range = pd.cut(df[col_age], bins=[0,20,30,40,50,60,100]).value_counts().idxmax()
-        ins['daily_sales'] = (
+        ins['daily_sales'] = get_message(
             f"👤 평균 고객 연령: <strong>{avg_age:.1f}세</strong>, "
             f"가장 많은 연령대: <strong>{mode_range}</strong>. "
-            f"핵심 연령대에 맞는 마케팅 메시지와 채널 전략을 수립하세요."
+            f"핵심 연령대에 맞는 마케팅 메시지와 채널 전략을 수립하세요.",
+            f"👤 Average customer age: <strong>{avg_age:.1f}</strong>, "
+            f"most common age band: <strong>{mode_range}</strong>. "
+            f"Tailor messaging and channels to that core age group.",
         )
 
     if col_seg and col_value:
         top, top_pct, by_seg = top_share(df, col_seg, col_value)
-        ins['region_sales'] = (
+        ins['region_sales'] = get_message(
             f"💼 <strong>{top}</strong> 세그먼트가 총 구매금액의 <strong>{top_pct:.1f}%</strong>를 차지합니다. "
-            f"고가치 세그먼트 유지에 집중하고, 저가치 세그먼트의 업셀링 기회를 모색하세요."
+            f"고가치 세그먼트 유지에 집중하고, 저가치 세그먼트의 업셀링 기회를 모색하세요.",
+            f"💼 The <strong>{top}</strong> segment accounts for <strong>{top_pct:.1f}%</strong> of total spend. "
+            f"Focus on retaining high-value segments and look for upsell room in the rest.",
         )
 
     if col_gender and col_value:
         by_gender = df.groupby(col_gender)[col_value].sum()
         dominant = by_gender.idxmax()
         pct = ratio_pct(by_gender.max(), by_gender.sum())
-        ins['product_distribution'] = (
+        ins['product_distribution'] = get_message(
             f"⚖️ <strong>{dominant}</strong> 고객이 전체 구매금액의 <strong>{pct:.1f}%</strong>를 차지합니다. "
-            f"{'성별 구매 격차가 크므로 비중이 낮은 성별 대상 프로모션을 검토하세요.' if pct > 60 else '성별 구매금액 비중이 비교적 균등합니다.'}"
+            + ('성별 구매 격차가 크므로 비중이 낮은 성별 대상 프로모션을 검토하세요.' if pct > 60
+               else '성별 구매금액 비중이 비교적 균등합니다.'),
+            f"⚖️ <strong>{dominant}</strong> customers drive <strong>{pct:.1f}%</strong> of total spend. "
+            + ('The gap is wide — consider promotions aimed at the under-represented group.' if pct > 60
+               else 'Spend is split fairly evenly between genders.'),
         )
 
     if col_seg and col_value:
         by_seg = df.groupby(col_seg)[col_value]
         cv = (by_seg.std() / by_seg.mean()).sort_values(ascending=False)
         high_var = cv.index[0]
-        ins['category_sales'] = (
+        ins['category_sales'] = get_message(
             f"📊 <strong>{high_var}</strong> 세그먼트 내 구매금액 편차가 가장 큽니다 (CV: {cv.iloc[0]:.2f}). "
             f"박스플롯에서 이상치(outlier)가 많은 세그먼트는 VIP 고객과 일반 고객이 혼재되어 있습니다. "
-            f"세분화된 개인화 마케팅이 효과적입니다."
+            f"세분화된 개인화 마케팅이 효과적입니다.",
+            f"📊 The <strong>{high_var}</strong> segment has the widest spend spread (CV: {cv.iloc[0]:.2f}). "
+            f"Segments with many box-plot outliers mix VIP and regular customers, "
+            f"so finer segmentation and personalization pay off.",
         )
 
     if col_income and col_value:
         corr = correlation(df, col_income, col_value, numeric=True)
-        ins['quantity_revenue'] = (
+        ins['quantity_revenue'] = get_message(
             f"💳 소득-구매금액 상관계수: <strong>{corr:.2f}</strong>. "
-            f"{'소득이 높을수록 구매금액도 높아 프리미엄 상품 전략이 유효합니다.' if corr > 0.5 else '소득과 구매금액의 상관이 낮습니다. 가격 감도보다 다른 요인(선호도, 브랜드)이 중요합니다.'} "
-            f"마커 크기(구매횟수)가 클수록 충성 고객임을 나타냅니다."
+            + ('소득이 높을수록 구매금액도 높아 프리미엄 상품 전략이 유효합니다.' if corr > 0.5
+               else '소득과 구매금액의 상관이 낮습니다. 가격 감도보다 다른 요인(선호도, 브랜드)이 중요합니다.')
+            + " 마커 크기(구매횟수)가 클수록 충성 고객임을 나타냅니다.",
+            f"💳 Income-spend correlation: <strong>{corr:.2f}</strong>. "
+            + ('Higher income means higher spend, so a premium product strategy works.' if corr > 0.5
+               else 'Income barely predicts spend — preference and brand matter more than price sensitivity.')
+            + " Larger markers (more purchases) indicate loyal customers.",
         )
 
     if col_recency:
         avg_days = df[col_recency].mean()
         churned_pct = ratio_pct((df[col_recency] > 90).sum(), len(df))
-        ins['daily_quantity'] = (
+        ins['daily_quantity'] = get_message(
             f"⏰ 평균 마지막 구매 후 경과일: <strong>{avg_days:.1f}일</strong>. "
             f"90일 이상 미구매 고객 비율: <strong>{churned_pct:.1f}%</strong>. "
-            f"{'이탈 위험 고객 비중이 높습니다. 재활성화 캠페인을 즉시 실행하세요.' if churned_pct > 30 else '고객 구매 주기가 양호합니다. 재구매 유도 타이밍을 최적화하세요.'}"
+            + ('이탈 위험 고객 비중이 높습니다. 재활성화 캠페인을 즉시 실행하세요.' if churned_pct > 30
+               else '고객 구매 주기가 양호합니다. 재구매 유도 타이밍을 최적화하세요.'),
+            f"⏰ Average days since last purchase: <strong>{avg_days:.1f}</strong>. "
+            f"Customers inactive for 90+ days: <strong>{churned_pct:.1f}%</strong>. "
+            + ('Churn risk is high — launch a reactivation campaign now.' if churned_pct > 30
+               else 'Purchase cadence looks healthy — fine-tune repeat-purchase timing.'),
         )
     elif col_age and col_purch:
         corr = correlation(df, col_age, col_purch, numeric=True)
-        ins['daily_quantity'] = (
+        ins['daily_quantity'] = get_message(
             f"🔄 연령-구매횟수 상관계수: <strong>{corr:.2f}</strong>. "
-            f"{'연령이 높을수록 구매 충성도가 높습니다.' if corr > 0.3 else '연령과 구매횟수의 상관이 낮습니다. 세그먼트 색상별로 구매 패턴의 차이를 확인하세요.'}"
+            + ('연령이 높을수록 구매 충성도가 높습니다.' if corr > 0.3
+               else '연령과 구매횟수의 상관이 낮습니다. 세그먼트 색상별로 구매 패턴의 차이를 확인하세요.'),
+            f"🔄 Age-purchase-count correlation: <strong>{corr:.2f}</strong>. "
+            + ('Older customers tend to buy more often.' if corr > 0.3
+               else 'Age barely predicts purchase count — compare patterns by segment color instead.'),
         )
     return ins
 
@@ -3008,6 +3149,25 @@ def examples():
     """분석 예시 목록 페이지"""
     return render_template('examples.html')
 
+def _example_dataset_name(template_type):
+    """예시 화면 제목을 현재 언어로 만든다."""
+    tpl = TEMPLATES[template_type]
+    return get_message(f"{tpl['name_ko']} 예시", f"{tpl['name_en']} Example")
+
+
+@app.template_filter('ds_name')
+def localized_dataset_name(name):
+    """예시 데이터셋 이름은 저장된 언어와 무관하게 현재 언어로 표시한다."""
+    if not name:
+        return name
+    for tpl in TEMPLATES.values():
+        ko = f"{tpl['name_ko']} 예시"
+        en = f"{tpl['name_en']} Example"
+        if name in (ko, en):
+            return get_message(ko, en)
+    return name
+
+
 @app.route('/example/<template_type>')
 @login_required
 def example_view(template_type):
@@ -3030,7 +3190,7 @@ def example_view(template_type):
     from datetime import datetime as dt
     fake_dataset = SimpleNamespace(
         id=None,
-        name=TEMPLATES[template_type]['name_ko'] + ' 예시',
+        name=_example_dataset_name(template_type),
         uploaded_at=dt.now(),
         row_count=len(df)
     )
@@ -3061,6 +3221,7 @@ def example_advanced_analytics(template_type):
         flash('샘플 파일을 찾을 수 없습니다.' if session.get('language') == 'ko' else 'Sample file not found.', 'danger')
         return redirect(url_for('examples'))
 
+    # 저장 이름은 언어와 무관하게 고정하고, 표시는 ds_name 필터가 현재 언어로 바꾼다
     dataset_name = f"{TEMPLATES[template_type]['name_ko']} 예시"
     dataset = Dataset.query.filter_by(user_id=current_user.id, name=dataset_name,
                                       is_template=True).first()
@@ -3154,7 +3315,6 @@ def crop_example():
                       color='Crop_Type',
                       title='Rainfall vs Crop Yield',
                       labels={'Rainfall_mm': 'Rainfall (mm)', 'Crop_Yield_kg': 'Yield (kg)'},
-                      trendline="ols",
                       size='Crop_Yield_kg',
                       size_max=15)
     fig3.update_layout(height=400)
@@ -3165,7 +3325,6 @@ def crop_example():
                       color='Crop_Type',
                       title='Temperature vs Crop Yield',
                       labels={'Temperature_C': 'Temperature (°C)', 'Crop_Yield_kg': 'Yield (kg)'},
-                      trendline="ols",
                       size='Crop_Yield_kg',
                       size_max=15)
     fig4.update_layout(height=400)
@@ -3185,7 +3344,6 @@ def crop_example():
                       color='Crop_Type',
                       title='Fertilizer Usage vs Crop Yield',
                       labels={'Fertilizer_kg': 'Fertilizer (kg)', 'Crop_Yield_kg': 'Yield (kg)'},
-                      trendline="ols",
                       size='Crop_Yield_kg',
                       size_max=15)
     fig6.update_layout(height=400)

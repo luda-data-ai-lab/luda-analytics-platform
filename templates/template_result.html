@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block title %}
-    {% if current_language == 'ko' %}분석 결과 - {{ dataset.name }}{% else %}Analysis Result - {{ dataset.name }}{% endif %}
+    {% if current_language == 'ko' %}분석 결과 - {{ dataset.name | ds_name }}{% else %}Analysis Result - {{ dataset.name | ds_name }}{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -12,7 +12,7 @@
         <div>
             <h2 class="page-title">
                 <i class="bi bi-graph-up-arrow text-primary"></i>
-                {{ dataset.name }}
+                {{ dataset.name | ds_name }}
             </h2>
             <p class="page-subtitle">
                 {{ dataset.uploaded_at.strftime('%Y-%m-%d %H:%M') }} &nbsp;·&nbsp;
@@ -107,7 +107,9 @@
         {% if charts[key] %}
         <div class="col-12 col-lg-6">
             <div class="card chart-card h-100">
-                <div class="card-body" id="{{ div_id }}"></div>
+                <div class="card-body">
+                    <div class="plot-area" id="{{ div_id }}"></div>
+                </div>
                 {% if insights and insights[key] %}
                 {# TODO: Claude API 연동 후 이 블록을 API 응답으로 교체 #}
                 <div class="insight-box" data-chart="{{ key }}">
@@ -180,7 +182,10 @@
 function renderChart(divId, chartData) {
     if (!chartData) return;
     try {
-        Plotly.newPlot(divId, chartData.data, chartData.layout, {responsive: true});
+        const layout = Object.assign({}, chartData.layout);
+        delete layout.height;
+        delete layout.width;
+        Plotly.newPlot(divId, chartData.data, layout, {responsive: true});
     } catch(e) {
         console.error('Chart render error:', divId, e);
     }
