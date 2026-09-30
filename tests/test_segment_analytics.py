@@ -50,7 +50,7 @@ def test_rfm_scores_and_segments(transactions_df):
     result = rfm_analysis(transactions_df, 'Customer', 'Date', 'Revenue')
 
     assert result['stats']['customers'] == 5
-    table = result['table'].set_index('customer')
+    table = result['table'].set_index('Customer')
     # C5 는 거래 횟수·금액이 가장 크므로 최고 F/M 점수를 받는다.
     assert table.loc['C5', 'f_score'] == 5
     assert table.loc['C5', 'm_score'] == 5
@@ -58,6 +58,15 @@ def test_rfm_scores_and_segments(transactions_df):
     assert set(result['segments']) <= {
         'champions', 'loyal', 'potential', 'at_risk', 'hibernating', 'others'}
     assert set(result['figures']) == {'rfm_segments', 'rfm_revenue'}
+
+
+def test_rfm_table_keeps_selected_customer_column_name(transactions_df):
+    renamed = transactions_df.rename(columns={'Customer': 'customer_id'})
+
+    table = rfm_analysis(renamed, 'customer_id', 'Date', 'Revenue')['table']
+
+    assert table.columns[0] == 'customer_id'
+    assert set(table['customer_id']) == set(renamed['customer_id'])
 
 
 def test_rfm_requires_three_customers():
