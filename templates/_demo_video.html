@@ -1,0 +1,27 @@
+{# 데모 영상 (DEMO_VIDEO_URL 설정 시에만 렌더링) #}
+{% if demo_video %}
+<div class="card demo-video-card mb-4">
+    <div class="card-body">
+        <h2 class="h5 mb-1">
+            <i class="bi bi-play-btn text-primary"></i>
+            {{ '데모 영상 - 업로드부터 리포트까지' if current_language == 'ko' else 'Demo - from upload to report' }}
+        </h2>
+        <p class="text-muted small mb-3">
+            {{ 'CSV 업로드 → 표 확인 → 차트 → 템플릿 분석 → 시계열 · 이상치 · ABC → Excel · 인쇄 리포트'
+               if current_language == 'ko' else
+               'Upload CSV, inspect the table, build charts, run template, time-series, outlier and ABC analysis, then export.' }}
+        </p>
+        <div class="ratio ratio-16x9">
+            {% if demo_video.kind == 'youtube' %}
+                <iframe src="{{ demo_video.url }}"
+                        title="{{ '데모 영상' if current_language == 'ko' else 'Demo video' }}"
+                        loading="lazy" allowfullscreen
+                        referrerpolicy="strict-origin-when-cross-origin"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"></iframe>
+            {% else %}
+                <video src="{{ demo_video.url }}" controls preload="none"></video>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endif %}

@@ -23,6 +23,9 @@
             <div class="card manual-toc">
                 <div class="card-header">{{ '목차' if ko else 'Contents' }}</div>
                 <div class="list-group list-group-flush">
+                    {% if demo_video %}
+                    <a class="list-group-item list-group-item-action" href="#demo">{{ '데모 영상' if ko else 'Demo video' }}</a>
+                    {% endif %}
                     <a class="list-group-item list-group-item-action" href="#start">1. {{ '시작하기' if ko else 'Getting started' }}</a>
                     <a class="list-group-item list-group-item-action" href="#upload">2. {{ '데이터 업로드' if ko else 'Uploading data' }}</a>
                     <a class="list-group-item list-group-item-action" href="#dashboard">3. {{ '대시보드' if ko else 'Dashboard' }}</a>
@@ -41,6 +44,11 @@
 
         <!-- 본문 -->
         <div class="col-lg-9">
+            {% if demo_video %}
+            <div id="demo">
+                {% include '_demo_video.html' %}
+            </div>
+            {% endif %}
             <!-- 1 -->
             <section id="start" class="card manual-section mb-4">
                 <div class="card-body">

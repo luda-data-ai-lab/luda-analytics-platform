@@ -43,6 +43,7 @@ from src.dataset_utils import (
     create_dataset_with_records, dataframe_rows, fix_dataset_meta, load_dataset_dataframe,
     read_dataframe, remove_file, save_upload, upload_folder
 )
+from src.demo_video import demo_video
 from src.i18n import flash_msg, get_message, msg
 from src.account_security import (
     APPROVAL_APPROVED, APPROVAL_PENDING, MAX_PURPOSE_LENGTH, MAX_REJECTION_REASON_LENGTH,
@@ -191,6 +192,12 @@ def apply_security_headers(response):
 @app.context_processor
 def inject_language():
     return dict(current_language=session.get('language', 'ko'))
+
+
+@app.context_processor
+def inject_demo_video():
+    """DEMO_VIDEO_URL 이 설정된 경우에만 데모 영상을 화면에 노출한다."""
+    return dict(demo_video=demo_video(app.config['DEMO_VIDEO_URL']))
 
 # 파일 확장자 확인
 def allowed_file(filename):
