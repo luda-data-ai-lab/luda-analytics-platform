@@ -100,6 +100,9 @@ python app.py
 | `SECRET_KEY` | Flask 세션 암호화 키 | 랜덤 64자 문자열 |
 | `DATABASE_URL` | DB 접속 URL | `postgresql+psycopg2://user:pw@host/db` |
 
+> `postgresql://` 처럼 드라이버를 생략해도 psycopg2 로 자동 보정됩니다. psycopg3 를 쓰려면
+> `postgresql+psycopg://` 를 명시하고 `pip install "psycopg[binary]"` 를 함께 설치하세요.
+
 `.env` 파일 예시 (자동으로 로드됨, 추적 제외 대상):
 ```
 SECRET_KEY=your-strong-secret-key
